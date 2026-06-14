@@ -1,0 +1,21 @@
+# C extensions
+*.so
+
+# Python Artifacts
+__pycache__/
+*.py[cod]
+
+# Security
+.env
+.venv
+*.pem
+
+# IdEMP IDE
+.idea/
+.vscode/
+.docs/
+.github/
+
+# Executables and System Files
+*.exe
+*.winmd
