@@ -10,6 +10,11 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Use python3 if available, else python (some hosts only ship one of them).
+PY="$(command -v python3 || command -v python)"
+if [ -z "$PY" ]; then echo "ERROR: no python3/python on PATH"; exit 1; fi
+echo "[info] using interpreter: $PY"
+
 IMAGE="${1:-../../data/test_images/normal_xray.jpg}"
 OUT="results.jsonl"
 : > "$OUT"   # truncate previous run
@@ -18,7 +23,7 @@ run () {
   echo "============================================================"
   echo ">>> $1   (quant=$2)"
   echo "============================================================"
-  python feasibility_check.py --model "$1" --quant "$2" --image "$IMAGE" --out "$OUT" \
+  "$PY" feasibility_check.py --model "$1" --quant "$2" --image "$IMAGE" --out "$OUT" \
     || echo "[continue] $1 ($2) failed — moving on"
   echo
 }
@@ -36,7 +41,7 @@ run "google/medgemma-4b-it"     "none"    # expect ~9 GB fp16
 echo "============================================================"
 echo "Done. Summary table:"
 echo "============================================================"
-python - <<'PY'
+"$PY" - <<'PY'
 import json
 rows = [json.loads(l) for l in open("results.jsonl") if l.strip()]
 hdr = f"{'model':40} {'quant':6} {'status':6} {'VRAM(GB)':9} {'tok/s':7} {'fits16':6}"
