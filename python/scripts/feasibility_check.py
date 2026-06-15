@@ -54,13 +54,33 @@ def bytes_to_gb(n):
     return round(n / (1024 ** 3), 2)
 
 
-def build_load_kwargs(quant):
+def resolve_dtype(model_id, dtype_arg):
+    """Pick the compute dtype.
+
+    Most VLMs (e.g. Qwen3-VL) are numerically fine in fp16 on a T4. The Gemma
+    family (incl. MedGemma) is trained in bf16 and OVERFLOWS in fp16 -> it emits
+    only <pad> tokens. So Gemma-family models must use bfloat16 even though the
+    T4 has no native bf16 acceleration (it still runs, just slower).
+    """
+    if dtype_arg == "float16":
+        return torch.float16
+    if dtype_arg == "bfloat16":
+        return torch.bfloat16
+    # auto
+    mid = model_id.lower()
+    if "gemma" in mid:
+        return torch.bfloat16
+    return torch.float16
+
+
+def build_load_kwargs(quant, dtype):
     """Construct from_pretrained kwargs tuned for a T4.
 
-    fp16 (not bf16) and a non-flash attention backend are mandatory on Turing.
+    A non-flash attention backend is mandatory on Turing; dtype is resolved by
+    resolve_dtype() (fp16 for most models, bf16 for Gemma-family).
     """
     kwargs = dict(
-        torch_dtype=torch.float16,        # T4 supports fp16 but NOT efficient bf16
+        dtype=dtype,                      # fp16 for most; bf16 for Gemma-family
         device_map="auto",                # accelerate places weights on the GPU
         attn_implementation="sdpa",       # Turing has no flash-attn-2
         trust_remote_code=True,
@@ -71,23 +91,23 @@ def build_load_kwargs(quant):
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
             bnb_4bit_use_double_quant=True,
-            bnb_4bit_compute_dtype=torch.float16,   # fp16 compute on T4 (NOT bf16)
+            bnb_4bit_compute_dtype=dtype,           # match resolved dtype
         )
-        kwargs.pop("torch_dtype", None)
+        kwargs.pop("dtype", None)
     elif quant == "8bit":
         assert _HAS_BNB, "bitsandbytes not installed -- pip install bitsandbytes"
         kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
-        kwargs.pop("torch_dtype", None)
+        kwargs.pop("dtype", None)
     elif quant != "none":
         raise ValueError("Unknown --quant value: " + quant)
     return kwargs
 
 
-def load_model(model_id, quant):
+def load_model(model_id, quant, dtype):
     """Load processor + model, returning (processor, model, load_seconds)."""
     t0 = time.perf_counter()
     processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
-    load_kwargs = build_load_kwargs(quant)
+    load_kwargs = build_load_kwargs(quant, dtype)
     try:
         model = AutoModelForImageTextToText.from_pretrained(model_id, **load_kwargs)
     except (ValueError, ImportError, RuntimeError) as e:
@@ -158,6 +178,8 @@ def main():
     ap = argparse.ArgumentParser(description="T4 VLM go/no-go feasibility check")
     ap.add_argument("--model", required=True, help="HF model id")
     ap.add_argument("--quant", default="none", choices=["none", "4bit", "8bit"])
+    ap.add_argument("--dtype", default="auto", choices=["auto", "float16", "bfloat16"],
+                    help="auto = bf16 for Gemma-family, fp16 otherwise")
     ap.add_argument("--image", default="../../data/test_images/normal_xray.jpg")
     ap.add_argument("--prompt", default=DEFAULT_PROMPT)
     ap.add_argument("--system-prompt", default=DEFAULT_SYSTEM)
@@ -183,7 +205,8 @@ def main():
 
     gpu_name = torch.cuda.get_device_name(0)
     total_vram = bytes_to_gb(torch.cuda.get_device_properties(0).total_memory)
-    record.update(gpu=gpu_name, total_vram_gb=total_vram,
+    dtype = resolve_dtype(args.model, args.dtype)
+    record.update(gpu=gpu_name, total_vram_gb=total_vram, dtype=str(dtype),
                   torch=torch.__version__, python=platform.python_version())
     print("[info] GPU=" + gpu_name + " total_vram=" + str(total_vram) + " GB  "
           + "model=" + args.model + " quant=" + args.quant)
@@ -192,7 +215,7 @@ def main():
     torch.cuda.reset_peak_memory_stats()
 
     try:
-        processor, model, load_s = load_model(args.model, args.quant)
+        processor, model, load_s = load_model(args.model, args.quant, dtype)
         text, gen_s, n_new = run_inference(
             processor, model, args.image, args.prompt,
             args.system_prompt, args.max_new_tokens, args.max_image_size)
