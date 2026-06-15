@@ -1,4 +1,4 @@
-# Extra deps for the Week-1 GO/NO-GO feasibility harness (run on the T4 EC2 box).
+# Extra deps for the feasibility harness (run on the T4 EC2 box).
 # Install INTO the same venv you use on the instance:
 #   pip install -r requirements-feasibility.txt
 #

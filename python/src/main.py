@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Project: Multimodal Medical AI Microservice - Week 1 MVP End-to-End Inference Engine
-Tech Stack: FastAPI + HTTPX + Ollama (Llama-3.2-Vision)
+Project: Multimodal Medical AI Microservice - End-to-End Inference Engine
+Tech Stack: FastAPI + HTTPX + Ollama / OpenRouter (vision-language models)
 
 This service provides a secure RESTful API endpoint that accepts user-uploaded medical
 images (e.g., X-rays) and diagnostic prompts, and asynchronously interacts with the

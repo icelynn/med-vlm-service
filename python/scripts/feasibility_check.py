@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Week 1 GO/NO-GO feasibility harness
-===================================
+Model & hardware feasibility harness
+====================================
 
 Goal
 ----
-Answer the single most important Week-1 question of the project plan (v2):
+Answer the key feasibility question for this project:
     "Can a (quantized) general VLM actually load and run a single chest X-ray
      inference on a T4 (16 GB)? If not, which smaller model does?"
 
@@ -175,7 +175,7 @@ DEFAULT_SYSTEM = ("You are a radiologist. Describe the chest X-ray findings "
 
 
 def main():
-    ap = argparse.ArgumentParser(description="T4 VLM go/no-go feasibility check")
+    ap = argparse.ArgumentParser(description="T4 VLM feasibility check")
     ap.add_argument("--model", required=True, help="HF model id")
     ap.add_argument("--quant", default="none", choices=["none", "4bit", "8bit"])
     ap.add_argument("--dtype", default="auto", choices=["auto", "float16", "bfloat16"],

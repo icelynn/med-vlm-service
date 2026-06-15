@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Week-1 GO/NO-GO matrix. Run this ON the T4 EC2 instance (inside your venv).
+# Feasibility matrix. Run this ON the T4 EC2 instance (inside your venv).
 #
 #   bash run_feasibility.sh
 #
