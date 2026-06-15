@@ -101,9 +101,14 @@ def load_model(model_id, quant):
     return processor, model, time.perf_counter() - t0
 
 
-def run_inference(processor, model, image_path, prompt, system_prompt, max_new_tokens):
+def run_inference(processor, model, image_path, prompt, system_prompt, max_new_tokens,
+                  max_image_size=896):
     """Run a single image+text generation. Returns (text, gen_seconds, n_new_tokens)."""
     image = Image.open(image_path).convert("RGB")
+    # Cap resolution: Qwen-VL vision-token count scales with image size, and an
+    # un-resized X-ray can blow up activation memory enough to OOM even a 4B model
+    # on a 14.5 GB T4. thumbnail() keeps aspect ratio and only ever shrinks.
+    image.thumbnail((max_image_size, max_image_size), Image.Resampling.LANCZOS)
 
     # Unified chat format works for both Qwen3-VL and MedGemma (Gemma-3 MM).
     messages = []
@@ -157,6 +162,8 @@ def main():
     ap.add_argument("--prompt", default=DEFAULT_PROMPT)
     ap.add_argument("--system-prompt", default=DEFAULT_SYSTEM)
     ap.add_argument("--max-new-tokens", type=int, default=256)
+    ap.add_argument("--max-image-size", type=int, default=896,
+                    help="longest image edge in px; caps vision-token memory")
     ap.add_argument("--out", default="results.jsonl", help="append JSONL results here")
     args = ap.parse_args()
 
@@ -188,7 +195,7 @@ def main():
         processor, model, load_s = load_model(args.model, args.quant)
         text, gen_s, n_new = run_inference(
             processor, model, args.image, args.prompt,
-            args.system_prompt, args.max_new_tokens)
+            args.system_prompt, args.max_new_tokens, args.max_image_size)
 
         peak_alloc = bytes_to_gb(torch.cuda.max_memory_allocated())
         peak_reserved = bytes_to_gb(torch.cuda.max_memory_reserved())
