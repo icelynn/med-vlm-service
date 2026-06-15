@@ -2,8 +2,18 @@ import asyncio
 import httpx
 from config import config
 
-async def _call_ollama(base64_image: str, prompt: str, system_prompt: str) -> str:
+async def _call_dev_model_router(base64_image: str, prompt: str, system_prompt: str) -> str:
     """Dev environment: call local or AWS Ollama engine"""
+    if not config.DEV_API_KEY:
+        raise Exception(
+            "DEV_API_KEY environment variable is not set. "
+            "Please set it to your Ollama API key (e.g., export DEV_API_KEY='...')."
+        )
+
+    headers = {
+        "Authorization": f"Bearer {config.DEV_API_KEY}",
+        "Content-Type": "application/json"
+    }
     payload = {
         "model": config.DEV_MODEL,
         "messages": [
@@ -13,7 +23,7 @@ async def _call_ollama(base64_image: str, prompt: str, system_prompt: str) -> st
         "stream": False
     }
     async with httpx.AsyncClient() as client:
-        response = await client.post(config.DEV_API_URL, json=payload, timeout=60.0)
+        response = await client.post(config.DEV_API_URL, headers=headers, json=payload, timeout=60.0)
 
         # Check HTTP status code
         if response.status_code != 200:
@@ -29,7 +39,7 @@ async def _call_ollama(base64_image: str, prompt: str, system_prompt: str) -> st
         return result["message"]["content"]
 
 
-async def _call_openrouter(base64_image: str, prompt: str, system_prompt: str) -> str:
+async def _call_local_model_router(base64_image: str, prompt: str, system_prompt: str) -> str:
     """Local environment: call OpenRouter cloud API to drive sandbox"""
     if not config.LOCAL_API_KEY:
         raise Exception(
@@ -103,8 +113,8 @@ async def _call_openrouter(base64_image: str, prompt: str, system_prompt: str) -
 
 async def generate_medical_report(base64_image: str, prompt: str, system_prompt: str) -> str:
     if config.ENV == "local":
-        return await _call_openrouter(base64_image, prompt, system_prompt)
+        return await _call_local_model_router(base64_image, prompt, system_prompt)
     elif config.ENV == "dev":
-        return await _call_ollama(base64_image, prompt, system_prompt)
+        return await _call_dev_model_router(base64_image, prompt, system_prompt)
     else:
         raise ValueError(f"[ERROR] Unsupported ENV setting: {config.ENV}")

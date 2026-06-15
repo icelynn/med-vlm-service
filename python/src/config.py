@@ -14,10 +14,11 @@ class Config:
     
     # Dev environment settings (Ollama)
     DEV_API_URL = os.getenv("DEV_API_URL", "")
+    DEV_API_KEY = os.getenv("DEV_API_KEY", "")
     DEV_MODEL = os.getenv("DEV_MODEL", "llama3.2-vision")
     
     # Local sandbox environment settings (OpenRouter)
-    LOCAL_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+    LOCAL_API_URL = os.getenv("LOCAL_API_URL", "")
     LOCAL_API_KEY = os.getenv("LOCAL_API_KEY", "")
     LOCAL_MODEL = os.getenv("LOCAL_MODEL", "qwen/qwen3.7-plus")
 
