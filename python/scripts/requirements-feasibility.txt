@@ -1,0 +1,16 @@
+# Extra deps for the Week-1 GO/NO-GO feasibility harness (run on the T4 EC2 box).
+# Install INTO the same venv you use on the instance:
+#   pip install -r requirements-feasibility.txt
+#
+# Note: install a CUDA build of torch that matches the instance's driver.
+# On a T4 (CUDA 12.x) the default PyPI wheel is usually fine; if not, see
+# https://pytorch.org/get-started/locally/ for the correct --index-url.
+
+torch>=2.3
+transformers>=4.57          # Qwen3-VL support landed in recent transformers
+accelerate>=0.34            # required for device_map="auto"
+bitsandbytes>=0.43          # 4-bit / 8-bit quantization (needs CUDA)
+pillow
+# Qwen3-VL's processor pulls these in; harmless for MedGemma:
+qwen-vl-utils
+torchvision
