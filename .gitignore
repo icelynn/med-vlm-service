@@ -16,7 +16,13 @@ __pycache__/
 .vscode/
 .docs/
 .github/
+.claude/
+CLAUDE.md
 
 # Executables and System Files
 *.exe
 *.winmd
+
+# Eval data: keep the small manifest CSVs, ignore the raw download + image bytes
+data/ct_ich/_raw/
+data/ct_ich/images/
