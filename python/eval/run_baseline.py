@@ -159,7 +159,7 @@ def main():
 
     print(f"\n[done] wrote {len(todo)} results -> {out_path}")
     print(f"       parsed={n_parsed}/{len(todo)}  refused={n_refused}/{len(todo)}")
-    print(f"       next: python python/eval/score_baseline.py --results {out_path.name}")
+    print(f"       next: python3 python/eval/score_baseline.py --results {out_path}")
 
 
 if __name__ == "__main__":
