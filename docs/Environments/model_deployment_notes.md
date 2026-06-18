@@ -19,6 +19,7 @@ Back to overview: [Environment & Dependency Overview](./environment_and_dependen
 | 6 | MedGemma `401 ... Please log in` | Instance not authenticated to HF | `huggingface-cli login` |
 | 7 | MedGemma `couldn't connect to huggingface.co` | Misleading message; real cause is a fine-grained token missing gated-repo permission | Use a Read token, or enable gated-repo access on the token |
 | 8 | MedGemma emits only `<pad>` | Gemma-family activations overflow in fp16 | Load in bfloat16 |
+| 9 | `PermissionError … /mnt/models/hf` during model download | `HF_HOME` points into the instance store, but the store is unmounted after every stop/start | Remount `nvme1n1`, then set `export HF_HOME=/mnt/hf` |
 
 ---
 
@@ -144,7 +145,40 @@ some models (Gemma family) require bf16. On older GPUs without native bf16 (T4),
 still runs — "correct but slower" beats "fast but wrong". Qwen3-VL is unaffected and
 runs fine in fp16.
 
-## 9. External corroboration (literature cross-check)
+## 9. HF_HOME path not writable (instance store not mounted)
+
+**Symptom:** model download fails immediately with:
+```
+Could not cache non-existence of file. Error: [Errno 13] Permission denied: '/mnt/models/hf'
+PermissionError: [Errno 13] Permission denied: '/mnt/models/hf'
+OSError: PermissionError at /mnt/models/hf when downloading ...
+```
+
+**Root cause:** `HF_HOME` points to a path inside the instance store (e.g. `/mnt/models/hf` or `/mnt/hf`), but the instance store (`nvme1n1`) is wiped and unmounted on every stop/start — the path no longer exists.
+
+**How to diagnose:**
+```bash
+lsblk          # if nvme1n1 MOUNTPOINTS column is empty, it is not mounted
+df -h /mnt     # if this shows the same numbers as root (/), /mnt has no separate mount
+```
+
+**Fix:** remount after each instance start (no reformat needed, but previously cached models are gone and must be re-downloaded):
+```bash
+sudo mount /dev/nvme1n1 /mnt
+sudo chown ubuntu:ubuntu /mnt
+export HF_HOME=/mnt/hf
+```
+
+To persist across SSH sessions:
+```bash
+echo 'export HF_HOME=/mnt/hf' >> ~/.bashrc
+```
+
+**Lesson:** the instance store is **wiped and unmounted on every stop/start** — unlike EBS which survives restarts. `export` only applies to the current shell; add it to `~/.bashrc` for persistence across sessions.
+
+---
+
+## 10. External corroboration (literature cross-check)
 
 > The following observations come from a MIDL 2026 paper (LLaMA32-Med, Dong et al.,
 > PEFT fine-tuning of LLaMA 3.2 Vision for medical VQA). They independently corroborate

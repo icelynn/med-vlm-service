@@ -53,6 +53,37 @@ sudo systemctl restart docker
 | `NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver` | The driver is installed but the `nvidia.ko` kernel module is not loaded (common after install before a reboot) | In order: (1) `sudo reboot`; (2) check with `dkms status`; (3) `sudo modprobe nvidia` to force-load |
 | `dkms status` returns no output (blank) | No NVIDIA kernel source is registered; usually because matching kernel headers were missing during a prior install and the DKMS build aborted | Full cleanup and reinstall (see SOP below) |
 | `torch.cuda.is_available()` = False | `pip install torch` resolves to cu130 (CUDA 13), but the driver supports only CUDA 12.2 — a major-version mismatch | Reinstall the cu121 torch build (see [Model Deployment Notes](./model_deployment_notes.md)) |
+| `PermissionError … /mnt/models/hf` during model download | `HF_HOME` points to a path that does not exist or is not writable (the instance store is not mounted, so `/mnt/models/hf` is absent) | Run the Instance Store mounting SOP below, then set `export HF_HOME=/mnt/hf` |
+| Model download aborts with `No space left on device` | The root disk (`/dev/root`, ~49 GB) has only 5–7 GB free after OS packages — not enough for Qwen3-VL-4B (~8.88 GB) | Same as above — redirect the HF model cache to the instance store |
+
+**Instance Store (nvme1n1) mounting SOP**
+
+The g4dn.xlarge includes a 125 GB NVMe instance store (`/dev/nvme1n1`) that is **unformatted and unmounted by default**. It must be remounted after each instance start (the instance store is wiped on stop/start).
+
+```bash
+# 1. Confirm nvme1n1 exists and has no mount point (MOUNTPOINTS column is empty)
+lsblk
+#  → should show nvme0n1 (EBS root) and nvme1n1 (instance store)
+
+# 2. Check remaining space on the root disk and /mnt
+df -h /        # root disk; typically only 5–7 GB free
+df -h /mnt     # if /mnt has no separate mount, this shows the same number as root
+
+# 3. Format (first time only; after a stop/start the data is wiped but no reformat needed)
+sudo mkfs.ext4 /dev/nvme1n1
+
+# 4. Mount and grant ownership
+sudo mount /dev/nvme1n1 /mnt
+sudo chown ubuntu:ubuntu /mnt
+
+# 5. Confirm available space (should show ~108 GB)
+df -h /mnt
+
+# 6. Point the HF model cache at the instance store
+export HF_HOME=/mnt/hf
+```
+
+> **Note**: `export HF_HOME=…` applies to the current shell session only. Re-run it after reconnecting via SSH, or add it to `~/.bashrc` to make it persistent.
 
 **Kernel module not loaded — three-stage SOP**
 ```bash
