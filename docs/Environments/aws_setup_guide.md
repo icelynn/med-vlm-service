@@ -32,6 +32,48 @@ aws ec2 authorize-security-group-ingress \
     --cidr "0.0.0.0/0"
 ```
 
+**Ollama port (11434) — do NOT open it; no app-level auth needed**
+Decision (2026-06-20): the FastAPI proxy (`python/src/`) and Ollama run on the **same** EC2 instance, so the proxy reaches Ollama via `127.0.0.1:11434`. Ollama's own API has no authentication mechanism — security comes entirely from **not being reachable from outside the instance**, not from a token.
+
+```bash
+# 1. Confirm Ollama is installed via the standard script (binds 127.0.0.1:11434 by default,
+#    no OLLAMA_HOST override needed/wanted)
+curl -fsSL https://ollama.com/install.sh | sh
+
+# 2. Verify it's listening on localhost only — must show 127.0.0.1:11434, NOT 0.0.0.0:11434
+ss -tlnp | grep 11434
+
+# 3. Do NOT run an authorize-security-group-ingress for port 11434.
+#    Only port 8000 (the FastAPI proxy, step above) should ever be opened.
+#    If a prior session opened 11434, revoke it:
+aws ec2 revoke-security-group-ingress \
+    --group-id "$CURRENT_SG" \
+    --protocol tcp \
+    --port 11434 \
+    --cidr "0.0.0.0/0"
+```
+
+If `ss` shows `0.0.0.0:11434` instead of `127.0.0.1:11434`, something set `OLLAMA_HOST=0.0.0.0` (e.g. a copy-pasted Docker tutorial) — fix it:
+```bash
+sudo systemctl edit ollama.service   # remove any Environment="OLLAMA_HOST=..." override
+sudo systemctl restart ollama
+ss -tlnp | grep 11434                # re-check: should now be 127.0.0.1:11434
+```
+
+**Post-install verification checklist (run once, right after Ollama is installed)**
+
+| # | Check | Command (run on the EC2 instance unless noted) | Pass criteria |
+|---|---|---|---|
+| 1 | Service is running | `sudo systemctl status ollama` | `active (running)` |
+| 2 | Bound to localhost only | `ss -tlnp \| grep 11434` | Shows `127.0.0.1:11434`, **not** `0.0.0.0:11434` |
+| 3 | Reachable from the instance itself | `curl http://127.0.0.1:11434/api/tags` | Returns JSON (model list, possibly empty) |
+| 4 | **Not** reachable from outside | From your **local machine** (not EC2): `curl --max-time 5 http://<EC2-public-IP>:11434/api/tags` | Times out / connection refused — if this succeeds, the port is exposed and something is wrong |
+| 5 | Security group still has no 11434 rule | AWS Console → EC2 → Security Groups → Inbound rules (or `aws ec2 describe-security-groups --group-ids "$CURRENT_SG"`) | Only ports 22 and 8000 listed, 11434 absent |
+| 6 | Required models are pulled | `ollama list` | Shows `qwen3-vl:4b` and `medgemma:4b` (or whichever `OLLAMA_MAIN_MODEL`/`OLLAMA_MEDICAL_MODEL` are set to) |
+| 7 | The FastAPI proxy can reach Ollama end-to-end | With `ENV=demo` set and the service running: `curl -X POST http://localhost:8000/analyze -F "prompt=test" -F "image=@data/ct_ich/images/050_016.png;type=image/png"` | Returns `{"report": "..."}`, not a connection error |
+
+If check #4 unexpectedly succeeds, stop and fix the security group / Ollama bind **before** doing anything else — that means the demo backend is open to the public internet with no authentication.
+
 **CloudWatch idle auto-stop (cost control)**
 Monitor `CPUUtilization` to detect true idleness. After 30 continuous minutes below 2%, the instance auto-stops (billing halts; the EBS volume is retained).
 
