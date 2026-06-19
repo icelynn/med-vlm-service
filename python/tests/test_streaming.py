@@ -118,6 +118,54 @@ async def test_upstream_error_raises():
     assert raised, "expected a 500 error to propagate"
 
 
+async def test_ollama_skips_malformed_json():
+    """A truncated / non-JSON NDJSON line is skipped, not fatal to the stream."""
+    lines = [
+        '{"message":{"content":"No "},"done":false}',
+        '{"message":{"content":"hemo',  # truncated JSON (TCP boundary) -> skipped
+        '{"message":{"content":"rrhage."},"done":false}',
+        '{"message":{"content":""},"done":true}',
+    ]
+    _patch_httpx(lines)
+    try:
+        toks = [t async for t in inference._stream_ollama("b64", "p", "s")]
+    finally:
+        _restore_httpx()
+    assert toks == ["No ", "rrhage."], toks
+
+
+async def test_openrouter_skips_malformed_and_choiceless():
+    """SSE chunks that are malformed JSON or lack 'choices' are skipped, not fatal."""
+    lines = [
+        'data: {"choices":[{"delta":{"content":"No "}}]}',
+        'data: {"id":"x","choices":[]}',          # heartbeat / empty choices -> skipped
+        'data: {"truncated',                       # malformed JSON -> skipped
+        'data: {"choices":[{"delta":{"content":"hemorrhage."}}]}',
+        "data: [DONE]",
+    ]
+    _patch_httpx(lines)
+    try:
+        toks = [t async for t in inference._stream_openrouter("b64", "p", "s")]
+    finally:
+        _restore_httpx()
+    assert toks == ["No ", "hemorrhage."], toks
+
+
+async def test_missing_openrouter_key_clear_error():
+    """ENV=test with an empty OPENROUTER_API_KEY raises a clear local error, not Bearer ''."""
+    orig_key = inference.config.OPENROUTER_API_KEY
+    inference.config.OPENROUTER_API_KEY = ""
+    try:
+        raised = False
+        try:
+            await inference.generate_medical_report("b64", "p", "s")
+        except ValueError as e:
+            raised = "OPENROUTER_API_KEY" in str(e)
+    finally:
+        inference.config.OPENROUTER_API_KEY = orig_key
+    assert raised, "expected a clear OPENROUTER_API_KEY-not-set ValueError"
+
+
 async def _post_stream():
     transport = httpx.ASGITransport(app=main.app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
@@ -170,6 +218,9 @@ async def _main():
         test_dev_router_parses_ndjson,
         test_local_router_parses_sse,
         test_upstream_error_raises,
+        test_ollama_skips_malformed_json,
+        test_openrouter_skips_malformed_and_choiceless,
+        test_missing_openrouter_key_clear_error,
         test_endpoint_sse_framing,
         test_endpoint_error_then_done,
     ]

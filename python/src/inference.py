@@ -108,6 +108,11 @@ def _resolve_service_backend() -> str:
             f"[錯誤] 角色 MODEL_ROLE={config.MODEL_ROLE} 在 {backend} 後端上沒有可用模型"
             "（例如 MedGemma 未上架 OpenRouter）。請改用 demo(Ollama) 或 dev(HF eval)。"
         )
+    if backend == "openrouter" and not config.OPENROUTER_API_KEY:
+        raise ValueError(
+            "[錯誤] ENV=test（OpenRouter）需要 OPENROUTER_API_KEY，但目前未設定。"
+            "請在 .env 設定 OPENROUTER_API_KEY。"
+        )
     return backend
 
 
@@ -138,7 +143,10 @@ async def _stream_ollama(base64_image: str, prompt: str, system_prompt: str):
             async for line in response.aiter_lines():
                 if not line.strip():
                     continue
-                chunk = json.loads(line)
+                try:
+                    chunk = json.loads(line)
+                except json.JSONDecodeError:
+                    continue  # 跳過壞行（截斷/非 JSON），不中斷整串
                 token = chunk.get("message", {}).get("content", "")
                 if token:
                     yield token
@@ -183,8 +191,14 @@ async def _stream_openrouter(base64_image: str, prompt: str, system_prompt: str)
                 data = line[len("data:"):].strip()
                 if data == "[DONE]":
                     break
-                chunk = json.loads(data)
-                token = chunk["choices"][0].get("delta", {}).get("content", "")
+                try:
+                    chunk = json.loads(data)
+                except json.JSONDecodeError:
+                    continue  # 跳過壞行（截斷/註解/keep-alive），不中斷整串
+                choices = chunk.get("choices")
+                if not choices:
+                    continue  # 心跳/內容過濾 chunk 可能無 choices，跳過而非崩潰
+                token = choices[0].get("delta", {}).get("content", "")
                 if token:
                     yield token
 

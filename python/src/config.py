@@ -49,7 +49,11 @@ class Config:
     OPENROUTER_API_URL = os.getenv("OPENROUTER_API_URL", "")
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
-    # Ollama (demo)
+    # Ollama (demo). Intentionally no OLLAMA_API_KEY: Ollama's own API has no auth
+    # mechanism, and this proxy reaches it over 127.0.0.1 on the same EC2 instance —
+    # the security boundary is "not reachable from outside the instance" (localhost
+    # bind + security group never opening 11434), not an app-level token. See
+    # docs/Environments/aws_setup_guide.md.
     OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "")
 
     @property

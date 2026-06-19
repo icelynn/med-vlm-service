@@ -45,9 +45,18 @@ from feasibility_check import load_model, run_inference, resolve_dtype  # noqa: 
 from parse_answer import parse_answer, SUBTYPES  # noqa: E402
 from config import MODELS, config as svc_config  # noqa: E402
 
-# The eval pipeline is the ENV=dev (HF + transformers) track. Default model comes
-# from the shared registry so model identities live in one place (config.py).
-DEFAULT_MODEL = MODELS[svc_config.MODEL_ROLE]["hf"]
+# The eval pipeline is the ENV=dev (HF + transformers) track. The default model comes
+# from the shared registry so model identities live in one place (config.py). Resolved
+# lazily (only when --model is not given) so a bad MODEL_ROLE never blocks an explicit
+# --model override, and produces a clear error instead of a raw KeyError.
+def _default_eval_model():
+    role_models = MODELS.get(svc_config.MODEL_ROLE)
+    if role_models is None:
+        raise SystemExit(
+            f"[error] MODEL_ROLE='{svc_config.MODEL_ROLE}' is not one of {list(MODELS)}. "
+            "Set MODEL_ROLE to 'main' or 'medical_baseline' (or pass --model explicitly)."
+        )
+    return role_models["hf"]
 
 DATA_DIR = PROJECT_ROOT / "data" / "ct_ich"
 IMAGES_DIR = DATA_DIR / "images"
@@ -92,7 +101,7 @@ def already_done(out_path):
 
 def main():
     ap = argparse.ArgumentParser(description="CT-ICH No-RAG baseline inference")
-    ap.add_argument("--model", default=DEFAULT_MODEL,
+    ap.add_argument("--model", default=None,
                     help="HF repo id; defaults to config.MODELS[MODEL_ROLE]['hf'] "
                          "(MODEL_ROLE=medical_baseline selects MedGemma)")
     ap.add_argument("--quant", default="none", choices=["none", "4bit", "8bit"])
@@ -105,6 +114,8 @@ def main():
     ap.add_argument("--max-image-size", type=int, default=896)
     ap.add_argument("--limit", type=int, default=0, help="0 = all; else first N")
     args = ap.parse_args()
+    if args.model is None:
+        args.model = _default_eval_model()
 
     import torch
     if not torch.cuda.is_available():
