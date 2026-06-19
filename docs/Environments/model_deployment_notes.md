@@ -19,7 +19,7 @@ Back to overview: [Environment & Dependency Overview](./environment_and_dependen
 | 6 | MedGemma `401 ... Please log in` | Instance not authenticated to HF | `huggingface-cli login` |
 | 7 | MedGemma `couldn't connect to huggingface.co` | Misleading message; real cause is a fine-grained token missing gated-repo permission | Use a Read token, or enable gated-repo access on the token |
 | 8 | MedGemma emits only `<pad>` | Gemma-family activations overflow in fp16 | Load in bfloat16 |
-| 9 | `PermissionError … /mnt/models/hf` during model download | `HF_HOME` points into the instance store, but the store is unmounted after every stop/start | Remount `nvme1n1`, then set `export HF_HOME=/mnt/hf` |
+| 9 | `PermissionError … /mnt/models/hf` during model download | `HF_HOME` points into the instance store, but the store is unmounted after every stop/start | Remount the instance store (the unmounted ~116 GB disk — `nvme0n1` on this instance), then set `export HF_HOME=/mnt/hf` |
 
 ---
 
@@ -81,13 +81,17 @@ matters just as much**.
 
 **Root cause:** `df -h` showed the root volume (50 GB EBS) 98 % full, 1.2 GB free.
 
-**Key observation:** `lsblk` revealed a **116 GB instance-store NVMe (`nvme1n1`) that
-was unmounted** — local high-speed storage included with `g4dn`.
+**Key observation:** `lsblk` revealed a **116 GB instance-store NVMe that was
+unmounted** — local high-speed storage included with `g4dn`. (On this instance it
+appeared as `nvme0n1`, with the EBS root as `nvme1n1` — the opposite of what some AWS
+docs assume. Device names vary: identify the store by size + unmounted state, and
+**never `mkfs` the disk mounted at `/`**.)
 
-**Fix:** format, mount, and relocate the Hugging Face cache:
+**Fix:** format, mount, and relocate the Hugging Face cache (`NVME` = the unmounted ~116 GB disk per `lsblk`):
 ```bash
-sudo mkfs.ext4 /dev/nvme1n1
-sudo mkdir -p /mnt/models && sudo mount /dev/nvme1n1 /mnt/models
+NVME=/dev/nvme0n1   # confirm with lsblk: the large, unpartitioned, unmounted disk
+sudo mkfs.ext4 "$NVME"
+sudo mkdir -p /mnt/models && sudo mount "$NVME" /mnt/models
 sudo chown $USER:$USER /mnt/models
 mkdir -p /mnt/models/hf && mv ~/.cache/huggingface/hub /mnt/models/hf/
 export HF_HOME=/mnt/models/hf
@@ -154,17 +158,18 @@ PermissionError: [Errno 13] Permission denied: '/mnt/models/hf'
 OSError: PermissionError at /mnt/models/hf when downloading ...
 ```
 
-**Root cause:** `HF_HOME` points to a path inside the instance store (e.g. `/mnt/models/hf` or `/mnt/hf`), but the instance store (`nvme1n1`) is wiped and unmounted on every stop/start — the path no longer exists.
+**Root cause:** `HF_HOME` points to a path inside the instance store (e.g. `/mnt/models/hf` or `/mnt/hf`), but the instance store (the ~116 GB ephemeral disk — `nvme0n1` on this instance) is wiped and unmounted on every stop/start — the path no longer exists.
 
 **How to diagnose:**
 ```bash
-lsblk          # if nvme1n1 MOUNTPOINTS column is empty, it is not mounted
+lsblk          # the unmounted ~116 GB disk (here nvme0n1) is the instance store
 df -h /mnt     # if this shows the same numbers as root (/), /mnt has no separate mount
 ```
 
 **Fix:** remount after each instance start (no reformat needed, but previously cached models are gone and must be re-downloaded):
 ```bash
-sudo mount /dev/nvme1n1 /mnt
+NVME=/dev/nvme0n1   # confirm with lsblk: the unmounted ~116 GB disk (NOT the one mounted at /)
+sudo mount "$NVME" /mnt
 sudo chown ubuntu:ubuntu /mnt
 export HF_HOME=/mnt/hf
 ```

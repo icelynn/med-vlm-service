@@ -56,24 +56,28 @@ sudo systemctl restart docker
 | `PermissionError … /mnt/models/hf` during model download | `HF_HOME` points to a path that does not exist or is not writable (the instance store is not mounted, so `/mnt/models/hf` is absent) | Run the Instance Store mounting SOP below, then set `export HF_HOME=/mnt/hf` |
 | Model download aborts with `No space left on device` | The root disk (`/dev/root`, ~49 GB) has only 5–7 GB free after OS packages — not enough for Qwen3-VL-4B (~8.88 GB) | Same as above — redirect the HF model cache to the instance store |
 
-**Instance Store (nvme1n1) mounting SOP**
+**Instance Store mounting SOP**
 
-The g4dn.xlarge includes a 125 GB NVMe instance store (`/dev/nvme1n1`) that is **unformatted and unmounted by default**. It must be remounted after each instance start (the instance store is wiped on stop/start).
+The g4dn.xlarge includes a ~116 GB NVMe instance store that is **unformatted and unmounted by default**. It must be remounted after each instance start (the instance store is wiped on stop/start).
+
+> ⚠️ **Identify the device by size + state, NOT by a hard-coded name.** NVMe device names are not guaranteed stable across instances/AMIs. On this instance `lsblk` showed the instance store as **`nvme0n1` (116.4 GB, no partitions, unmounted)** and the EBS root as **`nvme1n1` (50 GB, partitioned, mounted at `/`)** — the *opposite* of the naming some AWS docs assume. **Before `mkfs`, confirm the target is the large, unpartitioned, unmounted disk — never format the disk mounted at `/`.**
 
 ```bash
-# 1. Confirm nvme1n1 exists and has no mount point (MOUNTPOINTS column is empty)
+# 1. Identify the instance store: the large (~116 GB), unpartitioned, UNMOUNTED disk
 lsblk
-#  → should show nvme0n1 (EBS root) and nvme1n1 (instance store)
+#  → on this instance: nvme1n1 = 50 GB, mounted at /  (EBS root — DO NOT touch)
+#                      nvme0n1 = 116.4 GB, no mountpoint (instance store — use this)
+NVME=/dev/nvme0n1   # adjust to whatever lsblk shows as the unmounted ~116 GB disk
 
 # 2. Check remaining space on the root disk and /mnt
 df -h /        # root disk; typically only 5–7 GB free
 df -h /mnt     # if /mnt has no separate mount, this shows the same number as root
 
 # 3. Format (first time only; after a stop/start the data is wiped but no reformat needed)
-sudo mkfs.ext4 /dev/nvme1n1
+sudo mkfs.ext4 "$NVME"
 
 # 4. Mount and grant ownership
-sudo mount /dev/nvme1n1 /mnt
+sudo mount "$NVME" /mnt
 sudo chown ubuntu:ubuntu /mnt
 
 # 5. Confirm available space (should show ~108 GB)

@@ -2,12 +2,7 @@
 """
 Evaluation metrics — per-pathology precision / recall / F1 + macro-F1.
 ======================================================================
-
-★ THIS FILE IS YOURS TO IMPLEMENT. ★
-
-The four functions below have specs in their docstrings but empty bodies.
-Implement them, then run this file:
-
+Run:
     python python/eval/metrics.py
 
 The self-test at the bottom uses a hand-calc example. When your implementation

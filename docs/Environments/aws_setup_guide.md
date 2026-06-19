@@ -44,14 +44,42 @@ Console configuration:
    - Select `Stop`, never `Terminate` (Terminate permanently destroys the instance and wipes all data).
 6. Name the alarm `med-vlm-gpu-idle-30min-stop` → Create alarm.
 
-**Linux cron activity heartbeat (prevents an accidental stop while you are working)**
-Text-only operations (`nano`, `cat`) consume almost no CPU, so CloudWatch can misread them as idle. The following job keeps CPU above the threshold whenever a user is connected via SSH:
+**Shell auto-logout on inactivity (TMOUT)**
+If a user leaves an SSH session open without typing, the instance should eventually stop to save cost. `TMOUT` is a bash built-in that auto-logs out the shell after a period of keyboard inactivity:
+```bash
+sudo nano /etc/profile.d/autologout.sh
+```
+Write the following and save:
+```bash
+# Auto-logout after 30 minutes of shell inactivity
+TMOUT=1800
+readonly TMOUT
+export TMOUT
+```
+```bash
+sudo chmod +x /etc/profile.d/autologout.sh
+```
+`readonly` prevents the user from overriding the value. The setting takes effect on the **next SSH login** (or run `source /etc/profile.d/autologout.sh` to apply immediately).
+
+> **Note:** `TMOUT` only applies to interactive bash. Full-screen programs (`vim`, `top`, `htop`) are unaffected — you will not be kicked out while editing a file.
+
+**Linux cron activity heartbeat (prevents an accidental stop while you are actively working)**
+Text-only operations (`nano`, `cat`) consume almost no CPU, so CloudWatch can misread them as idle. The following job raises CPU only when a user is **actively typing** (idle < 1 minute), preventing false stops during work while still allowing auto-stop when the user walks away:
 ```bash
 sudo crontab -e
 # Append to the bottom of the file (choose the nano editor with 1 on first open):
-* * * * * who | grep -q "pts" && openssl speed rsa1024 >/dev/null 2>&1
+* * * * * for tty in $(who | awk '/pts/{print $2}'); do idle=$(w -h "$tty" 2>/dev/null | awk '{print $5}'); if [ "$idle" = "." ] || echo "$idle" | grep -qE '^[0-9]+(\.[0-9]+)?s$'; then openssl speed rsa1024 >/dev/null 2>&1; break; fi; done
 ```
-Logic: a user is online → openssl raises CPU → the CloudWatch timer resets (no stop); the user logs off → CPU drops to zero → the instance auto-stops after 30 minutes.
+Logic: the cron checks each SSH session's idle time via `w`. If any session has been idle for less than 1 minute (actively typing), it runs `openssl` to raise CPU and reset the CloudWatch timer. If all sessions are idle ≥ 1 minute, no heartbeat is sent — `TMOUT` will log out the shell after 30 minutes, then CloudWatch will stop the instance after another 30 minutes.
+
+**Combined behavior summary:**
+
+| Scenario | Heartbeat | TMOUT | CloudWatch alarm |
+|---|---|---|---|
+| User actively typing | ✅ fires every minute | Timer resets | Does not trigger |
+| User idle < 30 min | ❌ stops firing | Timer counting | Does not trigger (within 30 min) |
+| User idle ≥ 30 min | ❌ | Shell auto-logs out | Triggers after 30 more min → Stop |
+| User forgot to log out and went to sleep | ❌ | Shell auto-logs out after 30 min | Triggers after 30 more min → Stop |
 
 ## 2. Troubleshooting
 
