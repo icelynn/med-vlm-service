@@ -38,10 +38,16 @@ from pathlib import Path
 EVAL_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = EVAL_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "python" / "scripts"))
+sys.path.insert(0, str(PROJECT_ROOT / "python" / "src"))
 sys.path.insert(0, str(EVAL_DIR))
 
 from feasibility_check import load_model, run_inference, resolve_dtype  # noqa: E402
 from parse_answer import parse_answer, SUBTYPES  # noqa: E402
+from config import MODELS, config as svc_config  # noqa: E402
+
+# The eval pipeline is the ENV=dev (HF + transformers) track. Default model comes
+# from the shared registry so model identities live in one place (config.py).
+DEFAULT_MODEL = MODELS[svc_config.MODEL_ROLE]["hf"]
 
 DATA_DIR = PROJECT_ROOT / "data" / "ct_ich"
 IMAGES_DIR = DATA_DIR / "images"
@@ -86,7 +92,9 @@ def already_done(out_path):
 
 def main():
     ap = argparse.ArgumentParser(description="CT-ICH No-RAG baseline inference")
-    ap.add_argument("--model", default="Qwen/Qwen3-VL-4B-Instruct")
+    ap.add_argument("--model", default=DEFAULT_MODEL,
+                    help="HF repo id; defaults to config.MODELS[MODEL_ROLE]['hf'] "
+                         "(MODEL_ROLE=medical_baseline selects MedGemma)")
     ap.add_argument("--quant", default="none", choices=["none", "4bit", "8bit"])
     ap.add_argument("--dtype", default="auto", choices=["auto", "float16", "bfloat16"])
     ap.add_argument("--manifest", default=str(MANIFEST))

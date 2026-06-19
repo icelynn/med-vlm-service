@@ -31,10 +31,22 @@
   </thead>
   <tbody>
     <tr>
-      <td><code>dev</code> / <code>prod</code></td>
-      <td>Ollama / vLLM Engine</td>
-      <td><code>llama3.2-vision</code> (Native Multi-modal)</td>
-      <td>AWS GPU Instances (CUDA Accelerated)</td>
+      <td><code>test</code></td>
+      <td>OpenRouter (Cloud API)</td>
+      <td>Main vLM (vision slug for local testing)</td>
+      <td>Local dev machine</td>
+    </tr>
+    <tr>
+      <td><code>dev</code></td>
+      <td>HF + Transformers (eval pipeline)</td>
+      <td><code>Qwen3-VL-4B</code> (main) / <code>MedGemma-4B</code> (medical baseline)</td>
+      <td>AWS GPU Instance (CUDA Accelerated)</td>
+    </tr>
+    <tr>
+      <td><code>demo</code></td>
+      <td>Ollama Engine</td>
+      <td><code>qwen3-vl:4b</code> (main) / <code>medgemma:4b</code> (medical baseline)</td>
+      <td>AWS GPU Instance (CUDA Accelerated)</td>
     </tr>
   </tbody>
 </table>
@@ -63,16 +75,22 @@ This project stands on the shoulders of giants within the open-source GenAI ecos
 Create a `.env` file in the project root folder to register your runtime credentials:
 
 ```ini
-ENV=local
+ENV=test                 # test | dev | demo
+MODEL_ROLE=main          # main | medical_baseline
 
-# Dev/Prod Architecture (Ollama)
-DEV_API_URL=[OLLAMA_API_URL]
-DEV_MODEL=[OLLAMA_MODEL]
+# test — OpenRouter (cloud API, local dev machine)
+OPENROUTER_API_URL=https://openrouter.ai/api/v1/chat/completions
+OPENROUTER_API_KEY=[your_sk_or_v1_openrouter_api_key_here]
+# OPENROUTER_MAIN_MODEL defaults in config.py
 
-# Local Sandbox Architecture (OpenRouter)
-LOCAL_API_KEY=[your_sk_or_v1_openrouter_api_key_here]
-LOCAL_MODEL=openrouter/owl-alpha
+# demo — Ollama on the AWS GPU instance
+OLLAMA_API_URL=http://localhost:11434/api/chat
+# OLLAMA_MAIN_MODEL / OLLAMA_MEDICAL_MODEL default to qwen3-vl:4b / medgemma:4b
+
+# dev — HF + Transformers (eval pipeline); HF model ids default in config.py
 ```
+
+> Backends are split by purpose: `dev` (HF + Transformers) is the **evaluation** track (`python/eval/run_baseline.py`) and produces all reported metrics; `test`/`demo` are the **served** proxy. Model identities live in one place — `python/src/config.py` (`MODELS` registry).
 
 ### 2. Sandbox Deployment (Docker Isolation)
 Build and spin up the complete isolated microservice environment natively without affecting host storage parameters:
