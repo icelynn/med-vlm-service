@@ -189,6 +189,11 @@ echo 'export HF_HOME=/mnt/hf' >> ~/.bashrc
 > PEFT fine-tuning of LLaMA 3.2 Vision for medical VQA). They independently corroborate
 > problems we hit during bring-up and are recorded here purely as engineering
 > cross-references, not as part of our own results.
+>
+> Two further points from the same paper (general VLMs' weak zero-shot accuracy on
+> medical tasks, and 4-bit quantization's accuracy cost) are **method/architecture**
+> findings rather than deployment ones — moved to `核心難題_遭遇與處理紀錄.md` (①
+> floor effect, §2 hardware/model-size tradeoff) to keep this file scoped to deployment.
 
 - **An 11B Vision model is genuinely too heavy for a 16 GB-class GPU.** Even with QLoRA
   (4-bit NF4), fine-tuning LLaMA 3.2 Vision 11B required ~20.4 GB on an A6000 — already
@@ -198,14 +203,6 @@ echo 'export HF_HOME=/mnt/hf' >> ~/.bashrc
   images to 512×512 before training specifically to "reduce OOM risk." Same lever as our
   inference-side fix (resize to 896 px to contain vision-token blow-up) — confirmed across
   both training and inference.
-- **4-bit quantization costs accuracy, not just speed.** Their ablation shows LoRA beats
-  QLoRA (4-bit NF4) by ~3% accuracy on SLAKE. This adds a second dimension to our
-  "8B-4bit fits but is ~3× slower" observation: 4-bit can also trade away quality. On a
-  T4, **4B fp16 generally beats 8B 4-bit** on both speed and numerical fidelity.
-- **(Context) general VLMs are weak zero-shot on medical tasks.** Their zero-shot numbers
-  put general VLMs (LLaMA 3.2 / Qwen2.5-VL / Gemma3) at ~30–44% on medical VQA — a useful
-  expectation-setter: a general model is not clinically reliable out of the box, which is
-  why factual quality should be measured with a structured labeler rather than fluency.
 
 Source: LLaMA32-Med, MIDL 2026 — https://openreview.net/forum?id=qGgZZwEeef
 

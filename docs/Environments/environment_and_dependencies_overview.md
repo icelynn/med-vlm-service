@@ -7,9 +7,10 @@ This document is the entry point for the **med-vlm-service** environment setup �
 | Document | Scope |
 |---|---|
 | [AWS Setup Guide](./aws_setup_guide.md) | EC2 instance provisioning, SSH access, security-group ingress, CloudWatch idle auto-stop |
-| [Docker Setup Guide](./docker_setup_guide.md) | Docker Engine installation, image build, FastAPI / Ollama service deployment |
-| [NVIDIA Container Toolkit & Driver](./nvidia_container_toolkit_and_driver.md) | GPU driver installation, Container Toolkit bridging, DKMS kernel-module troubleshooting |
+| [Docker Setup Guide](./docker_setup_guide.md) | Docker Engine installation, image build, FastAPI service deployment |
+| [NVIDIA Driver Setup Guide](./nvidia_driver_setup_guide.md) | GPU driver installation, DKMS kernel-module troubleshooting |
 | [Model Deployment Notes](./model_deployment_notes.md) | Model loading, CUDA compatibility, VRAM, gated-repo access, and dtype issues at the inference layer |
+| [Ollama Setup Journey](./ollama_setup_journey.md) | Timeline and decisions from the demo backend's attempt at Ollama: clean install → T4 CUDA bug → two mitigation paths → retired in favor of HF transformers |
 
 ## 1. Architecture
 
@@ -20,9 +21,7 @@ The stack spans four layers, from underlying hardware up to the API surface:
    │
 [Driver]     NVIDIA Driver 550-server + DKMS
    │
-[Container]  Docker Engine + NVIDIA Container Toolkit
-   │
-[Application] FastAPI (8000) + Ollama (11434) / transformers
+[Application] FastAPI (8000) + transformers / Ollama (11434)
 ```
 
 ## 2. Cloud Hardware Specification
@@ -40,9 +39,8 @@ The stack spans four layers, from underlying hardware up to the API surface:
 |---|---|---|
 | OS base tools | `build-essential` `curl` `git` `python3-pip` `python3-venv` `ca-certificates` `gnupg` `lsb-release` | Compilation, downloads, version control, Python virtual environments |
 | GPU driver | `nvidia-driver-550-server`, `nvidia-dkms-550-server`, `ubuntu-drivers-common` | Detect and drive the T4 GPU |
-| Container engine | `docker-ce` `docker-ce-cli` `containerd.io` `docker-buildx-plugin` `docker-compose-plugin` | Containerized deployment |
-| GPU container bridge | `nvidia-container-toolkit` | Expose host GPU to containers |
-| Inference engine | Ollama (containerized) / direct model loading via transformers | Multimodal model inference |
+| Container engine | `docker-ce` `docker-ce-cli` `containerd.io` `docker-buildx-plugin` `docker-compose-plugin` | Containerized deployment of the FastAPI proxy (CPU-only; no GPU access from containers) |
+| Inference engine | Direct model loading via transformers / Ollama | Multimodal model inference, run natively on the host |
 | Application framework | FastAPI (port 8000), `httpx` | Serves the `/analyze` image-analysis API |
 | Python ML | `torch` / `torchvision` (**must match the CUDA version — use cu121**) | Deep-learning tensor operations |
 
@@ -73,7 +71,7 @@ OLLAMA_MODEL=llama3.2-vision
 
 ## 6. Outcome Summary
 
-- **Infrastructure:** a reproducible AWS g4dn.xlarge (T4) environment covering the driver, Docker, and GPU container-bridge layers.
+- **Infrastructure:** a reproducible AWS g4dn.xlarge (T4) environment covering the driver and Docker layers.
 - **Deployment robustness:** systematic diagnosis and resolution of real-world issues — VRAM limits, CUDA/driver compatibility, disk and storage planning, gated-model access governance, and the effect of numerical precision (dtype) on correctness.
 - **Cost control:** a combined "CloudWatch sentinel + cron heartbeat" mechanism that auto-stops the instance after 30 minutes of idleness, balancing development flexibility against GPU spend.
 - **End-to-end validation:** FastAPI `/analyze` accepts multimodal requests from external clients and returns standard JSON; the service is live.

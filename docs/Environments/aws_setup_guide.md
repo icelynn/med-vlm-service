@@ -74,6 +74,66 @@ ss -tlnp | grep 11434                # re-check: should now be 127.0.0.1:11434
 
 If check #4 unexpectedly succeeds, stop and fix the security group / Ollama bind **before** doing anything else — that means the demo backend is open to the public internet with no authentication.
 
+**Known issue: Ollama crashes on the T4 with `CUDA error: device kernel image is invalid`**
+
+*Symptom (observed on this instance, Ollama 0.30.10, default `cuda_v12` library):*
+```
+ggml_cuda_compute_forward: PAD failed
+CUDA error: device kernel image is invalid
+  current device: 0, in function ggml_cuda_compute_forward at .../ggml-cuda.cu:3163
+...
+level=ERROR source=llama_server.go:864 msg="llama-server terminated" error="signal: aborted (core dumped)"
+level=INFO source=sched.go:651 msg="Load failed" ... error="llama-server process has terminated: CUDA error: device kernel image is invalid"
+```
+Every model load crashes on the very first CUDA kernel launch (`ggml_cuda_compute_forward`), regardless of which model is loaded — confirmed not model-specific on this instance.
+
+*Root cause:* Ollama's `0.30.x` release line (the release that integrated the `llama.cpp` engine more fully — see the [v0.30.0 release notes](https://github.com/ollama/ollama/releases/tag/v0.30.0)) ships a `cuda_v12` GPU library that is missing the correct kernels for compute capability 7.5 (Turing — covers the T4 and several other cards, e.g. Quadro RTX 6000, GTX 1660 Super). A maintainer-adjacent report on the same compute capability found via `cuobjdump` that the bundled `cuda_v12/libggml-cuda.so` only contains `sm_50` kernels where it should contain `sm_75`, while the `cuda_v13` build is correctly compiled — see the `JohnCobbler` comment on [ollama/ollama#16449](https://github.com/ollama/ollama/issues/16449). Drivers that report CUDA 12.x (e.g. this instance's `535.309.01`, CUDA 12.2) get routed to the broken `cuda_v12` library; drivers reporting CUDA 13.x route to the correct `cuda_v13` library instead. This is **specific to the 0.30.x line** — multiple independent reports in the same issue thread, and in the older but related [#6997](https://github.com/ollama/ollama/issues/6997), confirm **Ollama 0.24.0 and earlier do not have this bug** on the same hardware.
+
+*Two paths were evaluated, neither is a clean drop-in fix:*
+
+| Path | Result | Verdict |
+|---|---|---|
+| Force `OLLAMA_LLM_LIBRARY=cuda_v11` (older lib, has correct sm_75 kernels) on **0.30.10** | No crash; full `/analyze` pipeline verified end-to-end (real structured report returned). **But** ~20x slower than expected — one CT slice took 9m4s total (1524 tokens @ ~2.8 tok/s; image encoding alone took ~2 minutes) | Correct, but too slow for interactive demo use |
+| Downgrade to **Ollama 0.24.0** (predates the 0.30.0 engine rewrite, native `cuda_v12` confirmed via log (`load_backend: loaded CUDA backend from .../cuda_v12/libggml-cuda.so`)) | No crash; **~20x faster** (e.g. a text-only reply: 454 tokens in 7.12s ≈ 64 tok/s). But `qwen3-vl:4b` **refused the same CT image (`050_016.png`, from the CT-ICH dataset) twice**, with two different excuses ("image clarity insufficient" / "does not comply with head CT imaging standards") — `medgemma:4b` analyzed the identical `050_016.png` correctly on the same 0.24.0 install in 2.46s, so the GPU/vision pipeline itself is fine. 0.30.10's logs show a model-specific `renderer=qwen3-vl-thinking parser=qwen3-vl-thinking` template path for this model that 0.24.0's (much quieter) logs never mention — the working theory is 0.24.0 predates whatever templating qwen3-vl's Ollama tag needs, so the image is not being correctly delivered to the model on that version | Fast, but produces incorrect (refused) answers for the primary model — not usable as-is |
+
+Neither path was left in place as the final fix as of this writing; **0.30.10 + `OLLAMA_LLM_LIBRARY=cuda_v11` is the last known-*correct* configuration** (slow, but verified to return real findings) — see the steps below for how it's wired into the systemd drop-in. A driver upgrade to a version reporting CUDA 13.x (routing Ollama to its `cuda_v13` library on the *current* 0.30.10, preserving the working qwen3-vl-thinking template path while fixing the kernel bug) remains untested — see the Driver/CUDA upgrade evaluation in the project's working notes for the tradeoffs (bigger version jump than anything else documented in this repo, affects the shared `dev`-track GPU).
+
+**Re-provisioning Ollama after every EC2 stop/start (instance store is ephemeral)**
+The instance store (the large NVMe disk used for `OLLAMA_MODELS`, kept off the small root EBS volume) is wiped every time the instance stops — pulled models, the mount, and its filesystem are all gone on the next start. The systemd drop-in file itself (`/etc/systemd/system/ollama.service.d/override.conf`) lives on the root EBS volume and **does** survive a stop/start, but it points at a path that no longer exists until the instance store is re-provisioned. Run this every time after reconnecting following a stop/start, before relying on `demo`:
+
+```bash
+# 1. Identify the instance store by size + mount state, never by a hard-coded device name
+#    (this has been observed to flip between nvme0n1/nvme1n1 across restarts on this instance)
+lsblk
+df -h /mnt   # some boots on this AMI auto-format+mount the instance store at /mnt already; others don't — check before assuming either way
+
+# 2a. If a ~100+ GB disk is ALREADY mounted at /mnt with that much space free, skip straight to step 3.
+# 2b. If instead lsblk shows a ~116 GB disk with no MOUNTPOINT, it needs to be formatted (data does not
+#     survive a stop, so this is not a mistake) and mounted:
+NVME=/dev/nvme___n1   # substitute whatever lsblk showed as the large, unmounted disk
+sudo mkfs.ext4 -F "$NVME"
+sudo mount "$NVME" /mnt
+
+# 3. (Re)create the Ollama model directory on the instance store and hand it to the ollama user
+sudo mkdir -p /mnt/ollama-models
+sudo chown ollama:ollama /mnt/ollama-models
+
+# 4. Confirm the systemd override still points there (the file persists; just sanity-check the content)
+cat /etc/systemd/system/ollama.service.d/override.conf
+#   [Service]
+#   Environment="OLLAMA_MODELS=/mnt/ollama-models"
+#   Environment="OLLAMA_LLM_LIBRARY=cuda_v11"     # see the known-issue note above; drop this line if/when fixed upstream or via a driver upgrade
+
+# 5. Apply and verify
+sudo systemctl daemon-reload && sudo systemctl restart ollama
+ss -tlnp | grep 11434          # must show 127.0.0.1:11434
+
+# 6. Re-pull both models — the instance store is empty again after every stop/start
+ollama pull qwen3-vl:4b
+ollama pull medgemma:4b
+ollama list                    # confirm both are present before starting the FastAPI proxy
+```
+
 **CloudWatch idle auto-stop (cost control)**
 Monitor `CPUUtilization` to detect true idleness. After 30 continuous minutes below 2%, the instance auto-stops (billing halts; the EBS volume is retained).
 

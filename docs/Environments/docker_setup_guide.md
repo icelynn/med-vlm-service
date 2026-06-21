@@ -48,20 +48,6 @@ docker build -t med-vlm-service .
 docker run -d -p 8000:8000 --env-file .env --name medical_agent med-vlm-service
 ```
 
-**Start the GPU-enabled Ollama inference engine**
-```bash
-docker run -d \
-  --gpus=all \
-  -v ollama:/root/.ollama \
-  -p 11434:11434 \
-  --name ollama \
-  --restart always \
-  ollama/ollama
-
-# Pull the multimodal model (~7.9 GB)
-docker exec -it ollama ollama run llama3.2-vision
-```
-
 ## 2. Troubleshooting
 
 | Symptom | Root cause | Fix |
@@ -87,15 +73,12 @@ docker ps
 # 2. Confirm the Docker version and permissions (a permission error means you did not re-login)
 docker --version
 
-# 3. Confirm Ollama acquired the GPU (the log shows "CUDA initialized successfully")
-docker logs ollama
-
-# 4. Container-internal network / DNS health probe (replaces the missing curl)
+# 3. Container-internal network / DNS health probe (replaces the missing curl)
 docker exec -it medical_agent python -c "import socket; print(socket.gethostbyname('huggingface.co'))"
 docker exec -it medical_agent python -c "import httpx; print('status code:', httpx.get('https://huggingface.co').status_code)"
 # Probe 2 returning "status code: 200" confirms the container's internal network and DNS are healthy
 
-# 5. End-to-end (E2E) test: log out of SSH and simulate an external client from your local machine
+# 4. End-to-end (E2E) test: log out of SSH and simulate an external client from your local machine
 curl -X POST http://your-ec2-public-ip:8000/analyze \
   -H "accept: application/json" \
   -H "Content-Type: multipart/form-data" \
