@@ -26,3 +26,6 @@ CLAUDE.md
 # Eval data: keep the small manifest CSVs, ignore the raw download + image bytes
 data/ct_ich/_raw/
 data/ct_ich/images/
+
+# Defensive test images (personal photos / downloaded medical samples) — never commit
+data/test_images/defensive/
