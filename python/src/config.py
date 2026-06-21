@@ -11,11 +11,13 @@ if _env_file.exists():
 # Each environment maps to exactly one inference backend.
 #   test — local dev machine, OpenRouter cloud API        (served by python/src)
 #   dev  — EC2, HF + transformers (eval pipeline)          (run_baseline.py, NOT this proxy)
-#   demo — EC2, Ollama (weights downloaded onto EC2 GPU)   (served by python/src)
+#   demo — EC2, HF + transformers (same engine as eval)    (served by python/src)
+#          Ollama dropped 2026-06-21: upstream CUDA kernel bug on T4/sm_75 in
+#          Ollama 0.30.x (ollama/ollama#16449), see docs/Environments/aws_setup_guide.md
 ENV_BACKEND = {
     "test": "openrouter",
     "dev": "hf",
-    "demo": "ollama",
+    "demo": "hf",
 }
 
 # Single source of truth for model identities.

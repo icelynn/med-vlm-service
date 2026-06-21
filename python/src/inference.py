@@ -1,10 +1,26 @@
 import asyncio
+import base64
 import json
+import re
+import sys
+import threading
+from io import BytesIO
+from pathlib import Path
+
 import httpx
+from PIL import Image
+
 from config import config
 
+_HF_MAX_IMAGE_SIZE = 896  # vision-token-blowup cap, same lesson as feasibility_check.py
+_THINK_TAG_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
+
+_hf_cache = {}  # model_id -> (processor, model); loaded lazily, kept resident
+_hf_lock = asyncio.Lock()  # one GPU, one generate() at a time
+
+
 async def _call_ollama(base64_image: str, prompt: str, system_prompt: str) -> str:
-    """demo 環境：呼叫 EC2 上的 Ollama 引擎"""
+    """(目前未使用；Ollama 在 T4 上有上游 CUDA bug，demo 已改走 _call_hf) 呼叫 EC2 上的 Ollama 引擎"""
     payload = {
         "model": config.model,
         "messages": [
@@ -28,6 +44,72 @@ async def _call_ollama(base64_image: str, prompt: str, system_prompt: str) -> st
             raise Exception(f"Ollama API 回應格式異常，缺少 'message' 欄位: {result}")
 
         return result["message"]["content"]
+
+
+def _decode_image(base64_image: str) -> Image.Image:
+    """Base64 → PIL,並套用 Week 1 的 lesson:長邊縮到 896px 避免 vision-token 爆 VRAM。"""
+    image = Image.open(BytesIO(base64.b64decode(base64_image))).convert("RGB")
+    image.thumbnail((_HF_MAX_IMAGE_SIZE, _HF_MAX_IMAGE_SIZE), Image.Resampling.LANCZOS)
+    return image
+
+
+def _strip_thinking(text: str) -> str:
+    """防禦性處理：若 checkpoint 真的吐出 <think>...</think>,濾掉只留最終報告。"""
+    return _THINK_TAG_RE.sub("", text, count=1).strip()
+
+
+async def _load_hf_model():
+    """惰性載入目前 MODEL_ROLE 對應的 HF 模型,常駐記憶體（同一個 process 只载一次）。
+
+    torch/transformers 在這裡才 import,讓 test/dev 等不需要 HF 的環境不用付這個 import 成本
+    (本機量測 torch+transformers import ≈2.6s)。重用 feasibility_check.py 已驗證過的 T4 載入邏輯。
+    """
+    model_id = config.model
+    if model_id not in _hf_cache:
+        scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+        from feasibility_check import load_model, resolve_dtype
+
+        dtype = resolve_dtype(model_id, "auto")
+        processor, model, _ = await asyncio.to_thread(load_model, model_id, "none", dtype)
+        _hf_cache[model_id] = (processor, model)
+    return _hf_cache[model_id]
+
+
+def _build_hf_inputs(processor, model, image: Image.Image, prompt: str, system_prompt: str):
+    """跟 feasibility_check.run_inference 相同的 chat-template 邏輯（兩個模型通用）。"""
+    messages = [
+        {"role": "system", "content": [{"type": "text", "text": system_prompt}]},
+        {"role": "user", "content": [
+            {"type": "image", "image": image},
+            {"type": "text", "text": prompt},
+        ]},
+    ]
+    return processor.apply_chat_template(
+        messages, add_generation_prompt=True, tokenize=True,
+        return_dict=True, return_tensors="pt",
+    ).to(model.device)
+
+
+async def _call_hf(base64_image: str, prompt: str, system_prompt: str) -> str:
+    """demo 環境：直接用 HF transformers 跑（重用 eval 已驗證過的載入/推論邏輯，繞開 Ollama）"""
+    image = _decode_image(base64_image)
+    async with _hf_lock:
+        processor, model = await _load_hf_model()
+        inputs = _build_hf_inputs(processor, model, image, prompt, system_prompt)
+        input_len = inputs["input_ids"].shape[-1]
+
+        def _generate():
+            import torch
+            with torch.inference_mode():
+                return model.generate(**inputs, max_new_tokens=1536, do_sample=False)
+
+        out = await asyncio.to_thread(_generate)
+
+    new_tokens = out[0][input_len:]
+    text = processor.decode(new_tokens, skip_special_tokens=True)
+    return _strip_thinking(text)
 
 
 async def _call_openrouter(base64_image: str, prompt: str, system_prompt: str) -> str:
@@ -95,18 +177,18 @@ async def _call_openrouter(base64_image: str, prompt: str, system_prompt: str) -
 
 def _resolve_service_backend() -> str:
     """回傳目前 ENV 對應的服務後端，並擋掉不該由此 proxy 服務的環境。"""
-    backend = config.backend
-    if backend == "hf":
+    if config.ENV == "dev":
         raise ValueError(
-            f"[錯誤] ENV={config.ENV} 是 HF+transformers 評估管線（請用 run_baseline.py），"
-            "本服務只服務 test(OpenRouter) 與 demo(Ollama)。"
+            "[錯誤] ENV=dev 是 HF+transformers 評估管線（請用 run_baseline.py），"
+            "本服務只服務 test(OpenRouter) 與 demo(HF transformers)。"
         )
-    if backend not in ("openrouter", "ollama"):
+    backend = config.backend
+    if backend not in ("openrouter", "ollama", "hf"):
         raise ValueError(f"[錯誤] 不支援的 ENV 設定: {config.ENV}")
     if config.model is None:
         raise ValueError(
             f"[錯誤] 角色 MODEL_ROLE={config.MODEL_ROLE} 在 {backend} 後端上沒有可用模型"
-            "（例如 MedGemma 未上架 OpenRouter）。請改用 demo(Ollama) 或 dev(HF eval)。"
+            "（例如 MedGemma 未上架 OpenRouter）。請改用 demo(HF transformers) 或 dev(HF eval)。"
         )
     if backend == "openrouter" and not config.OPENROUTER_API_KEY:
         raise ValueError(
@@ -121,6 +203,8 @@ async def generate_medical_report(base64_image: str, prompt: str, system_prompt:
     backend = _resolve_service_backend()
     if backend == "openrouter":
         return await _call_openrouter(base64_image, prompt, system_prompt)
+    if backend == "hf":
+        return await _call_hf(base64_image, prompt, system_prompt)
     return await _call_ollama(base64_image, prompt, system_prompt)
 
 
@@ -152,6 +236,40 @@ async def _stream_ollama(base64_image: str, prompt: str, system_prompt: str):
                     yield token
                 if chunk.get("done"):
                     break
+
+
+async def _stream_hf(base64_image: str, prompt: str, system_prompt: str):
+    """demo 環境（HF 直跑、串流版）：背景 thread 跑 generate(streamer=...),用 asyncio.Queue 橋接成 async yield"""
+    from transformers import TextIteratorStreamer  # 延後 import,避免非 demo 環境也要拉 transformers
+
+    image = _decode_image(base64_image)
+    async with _hf_lock:
+        processor, model = await _load_hf_model()
+        inputs = _build_hf_inputs(processor, model, image, prompt, system_prompt)
+        streamer = TextIteratorStreamer(processor.tokenizer, skip_prompt=True, skip_special_tokens=True)
+
+        def _generate():
+            import torch
+            with torch.inference_mode():
+                model.generate(**inputs, max_new_tokens=1536, do_sample=False, streamer=streamer)
+
+        threading.Thread(target=_generate, daemon=True).start()
+
+        loop = asyncio.get_running_loop()
+        queue = asyncio.Queue()
+
+        def _pump():
+            for piece in streamer:
+                loop.call_soon_threadsafe(queue.put_nowait, piece)
+            loop.call_soon_threadsafe(queue.put_nowait, None)  # 結束哨兵
+
+        threading.Thread(target=_pump, daemon=True).start()
+
+        while True:
+            piece = await queue.get()
+            if piece is None:
+                break
+            yield piece
 
 
 async def _stream_openrouter(base64_image: str, prompt: str, system_prompt: str):
@@ -208,6 +326,8 @@ async def generate_medical_report_stream(base64_image: str, prompt: str, system_
     backend = _resolve_service_backend()
     if backend == "openrouter":
         gen = _stream_openrouter(base64_image, prompt, system_prompt)
+    elif backend == "hf":
+        gen = _stream_hf(base64_image, prompt, system_prompt)
     else:
         gen = _stream_ollama(base64_image, prompt, system_prompt)
     async for token in gen:
