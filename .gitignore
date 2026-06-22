@@ -38,6 +38,9 @@ data/rag/
 # Eval result artifacts: reproducible from the scripts; keep manifests, not outputs
 data/ct_ich/results*.jsonl
 data/ct_ich/*summary*.json
+data/rsna/results*.jsonl
+data/rsna/*summary*.json
+data/rsna/images_512px_control/
 data/comparison.md
 
 # Defensive test images (personal photos / downloaded medical samples) — never commit

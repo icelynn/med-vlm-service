@@ -8,8 +8,8 @@ re-scoring, no re-inference) and renders a side-by-side markdown table:
 Any-hem F1 + 95% bootstrap CI + dangerous-FN rate, one row per (dataset,
 method) run.
 
-Add a new row by adding one entry to RUNS below once its summary JSON exists
-(e.g. an RSNA row once data/rsna/summary.json lands). No other code changes.
+Add a new row by adding one entry to RUNS below once its summary JSON exists.
+No other code changes.
 
 Usage
 -----
@@ -25,13 +25,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 
 # (dataset, method, summary_path) -- summary_path is relative to DATA_DIR.
-# RSNA rows are commented out until data/rsna/summary*.json exists (blocked
-# on Kaggle rate limit as of 2026-06-22 -- see 核心難題 doc).
 RUNS = [
     ("CT-ICH", "No-RAG (Qwen3-VL-4B)",  "ct_ich/baseline_summary.json"),
     ("CT-ICH", "Text-RAG (R1)",         "ct_ich/summary_rag.json"),
     ("CT-ICH", "MedGemma-4B (B)",       "ct_ich/summary_medgemma.json"),
-    # ("RSNA",   "No-RAG (Qwen3-VL-4B)",  "rsna/summary.json"),
+    ("RSNA",   "No-RAG (Qwen3-VL-4B)",  "rsna/summary.json"),
+    ("RSNA",   "Text-RAG (R1)",         "rsna/summary_rag.json"),
+    ("RSNA",   "MedGemma-4B (B)",       "rsna/summary_medgemma.json"),
 ]
 
 

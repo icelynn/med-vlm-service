@@ -15,8 +15,10 @@ What it does
 1. Read hemorrhage_diagnosis_raw_ct.csv -> per-slice labels for the 5 ICH
    subtypes (+ fracture, + No_Hemorrhage). Build a full index (one row / slice).
 2. Stratified-sample N slices (default 150): a fixed "normal" (no-hemorrhage)
-   fraction, the rest hemorrhage slices chosen with greedy coverage across the
-   5 subtypes so rare ones (epidural/subdural) are not starved.
+   fraction, the rest hemorrhage slices drawn via multi-label stratified
+   sampling (MultilabelStratifiedShuffleSplit) across the 5 subtypes, so the
+   sample's per-subtype prevalence and co-occurrence both track the true
+   population instead of an artificial balance.
 3. Render ONLY the sampled slices: load each patient's NIfTI volume, take the
    slice, apply the brain window, save a PNG. (We never materialise all ~2500
    slices -- only the ones we sampled.)
@@ -51,6 +53,7 @@ from pathlib import Path
 
 import nibabel as nib
 import numpy as np
+from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 from PIL import Image
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -111,9 +114,26 @@ def read_index(root):
 
 
 def stratified_sample(records, n, normal_frac, seed):
-    """Sample n slices: a fixed normal fraction + hemorrhage slices chosen with
-    greedy coverage across the 5 subtypes (rare subtypes prioritised).
-    Deterministic given the seed.
+    """Sample n slices: a fixed normal fraction (deliberately enriched vs the
+    true ~89% normal rate, so Any-hem F1 has enough hemorrhage slices to be
+    measurable -- this enrichment is intentional, unlike everything below it)
+    + hemorrhage slices drawn via multi-label stratified sampling across the
+    5 subtypes. Deterministic given the seed.
+
+    Why multi-label stratification, not hand-rolled greedy coverage: an
+    earlier version picked hemorrhage slices via greedy set-cover ("which
+    candidate covers the most still-under-represented subtypes"). That
+    structurally favours multi-subtype slices -- on RSNA's much larger pool
+    it concentrated >90% of the sample on simultaneous 4-5-subtype slices
+    that make up <1% of the true population (see core-challenges doc
+    difficulty (10)). A hand-patched "prefer fewer subtypes" tiebreak
+    overcorrected to an artificially perfect 0%-multi, equal-support sample
+    -- just as fake a fingerprint as the original skew, since real subtype
+    prevalence is never balanced (e.g. epidural vs subdural differ ~15x).
+    MultilabelStratifiedShuffleSplit (Sechidis et al. 2011, the standard tool
+    for this exact problem -- used in published RSNA-competition solutions)
+    preserves per-subtype prevalence AND co-occurrence proportions in one
+    step, so there's no balance-vs-representativeness tradeoff to hand-tune.
     """
     rng = random.Random(seed)
     normals = [r for r in records if r["is_normal"]]
@@ -127,19 +147,20 @@ def stratified_sample(records, n, normal_frac, seed):
 
     sampled = rng.sample(normals, n_normal)
 
-    rng.shuffle(hemo)
-    chosen, seen = [], defaultdict(int)
-    pool = list(hemo)
-    while pool and len(chosen) < n_hemo:
-        def score(r):
-            present = [p for p in r["present_subtypes"].split("; ") if p]
-            return min((seen[p] for p in present), default=0)
-        pick = min(pool, key=score)
-        pool.remove(pick)
-        chosen.append(pick)
-        for p in (p for p in pick["present_subtypes"].split("; ") if p):
-            seen[p] += 1
-    sampled += chosen
+    label_matrix = np.array([[r[k] for k in SUBTYPES.values()] for r in hemo])
+    X_dummy = np.zeros((len(hemo), 1))
+    splitter = MultilabelStratifiedShuffleSplit(
+        n_splits=1, test_size=n_hemo / len(hemo), random_state=seed)
+    _, sample_idx = next(splitter.split(X_dummy, label_matrix))
+    chosen_idx = list(sample_idx[:n_hemo])
+    if len(chosen_idx) < n_hemo:
+        # Internal rounding in the per-label allocation can land 1-2 short
+        # when some labels have very few candidates; top up from the
+        # remaining pool (not picked) rather than silently returning n-1.
+        leftover = [i for i in range(len(hemo)) if i not in set(chosen_idx)]
+        rng.shuffle(leftover)
+        chosen_idx += leftover[:n_hemo - len(chosen_idx)]
+    sampled += [hemo[i] for i in chosen_idx]
 
     rng.shuffle(sampled)
     return sampled

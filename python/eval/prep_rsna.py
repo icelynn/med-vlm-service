@@ -25,9 +25,9 @@ patient/study grouping, no volumes (unlike CT-ICH's per-patient NIfTI). So:
     individual images can't be fetched by ID. `guiferviz` uses flat
     `stage_1_train_images/<id>.png` naming, fetchable by ID directly.)
   * That mirror only covers "stage 1" images (~90% of stage_2's full label
-    set), so sampling tries each candidate ID via the Kaggle API and skips
-    ones the mirror doesn't have, drawing the next candidate in the same
-    category instead.
+    set), so the stratified candidate list is drawn oversized and tried in
+    order via the Kaggle API, skipping ones the mirror doesn't have (see
+    CANDIDATE_OVERSAMPLE).
 
 Preconditions
 -------------
@@ -53,8 +53,20 @@ from collections import defaultdict
 from pathlib import Path
 
 import kagglehub
+import numpy as np
+from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 from kagglehub.exceptions import KaggleApiHTTPError
 from PIL import Image
+
+# How many extra hemorrhage candidates to draw beyond the target, since some
+# stratified-sample picks won't exist in the stage_1 mirror subset (fetch
+# misses). Candidates are tried in the stratified split's own (shuffled)
+# order until the target is met, so a roughly-random subset of misses
+# shouldn't meaningfully disturb the label-distribution fidelity the
+# stratification provides. 2x comfortably covers the ~12% miss rate observed
+# in practice; if it's not enough, sample_and_fetch just returns fewer than
+# requested (graceful, not silent) rather than grinding indefinitely.
+CANDIDATE_OVERSAMPLE = 2
 
 # Throttle between single-file Kaggle fetches. The API rate-limits a whole
 # account/token across endpoints; kagglehub's own error reporting collapses
@@ -65,7 +77,7 @@ from PIL import Image
 # truly doesn't have that ID, or we are rate-limited and every ID looks like
 # a miss); MAX_CONSECUTIVE_MISSES turns that into a hard stop instead of a
 # silent multi-hour hang.
-FETCH_DELAY_SECONDS = 0.4
+FETCH_DELAY_SECONDS = 1.5
 MAX_CONSECUTIVE_MISSES = 40
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -135,9 +147,22 @@ class TooManyConsecutiveMisses(RuntimeError):
 
 def sample_and_fetch(records, n, normal_frac, seed):
     """Stratified sample + fetch in one pass: a fixed normal fraction, plus
-    hemorrhage slices chosen with greedy coverage across the 5 subtypes
-    (mirrors prep_ct_ich.py's stratified_sample). Candidates the mirror
-    doesn't have are skipped in favour of the next-best candidate.
+    hemorrhage images drawn via multi-label stratified sampling
+    (MultilabelStratifiedShuffleSplit, Sechidis et al. 2011 -- the standard
+    tool for this exact problem, used in published RSNA-competition
+    solutions). See prep_ct_ich.py's stratified_sample docstring and
+    core-challenges doc difficulty (10) for why a hand-rolled greedy
+    coverage loop was replaced: it structurally favours multi-subtype
+    images (whichever covers the most still-rare labels at once), which blew
+    up to >90% multi-subtype on this dataset's much larger pool, and a
+    hand-patched "prefer fewer subtypes" tiebreak overcorrected to an
+    artificially perfect 0%-multi sample -- just as fake a fingerprint as
+    the original skew.
+
+    The stratified candidate set is drawn oversized (CANDIDATE_OVERSAMPLE x
+    the target, see module-level comment) since some candidates won't exist
+    in the stage_1 mirror subset; candidates are tried in the split's own
+    shuffled order until the target is met or the candidate list runs out.
 
     Prints live progress (one line per fetch) since this can run for a
     while -- stdout is block-buffered when redirected to a log file, so
@@ -154,10 +179,18 @@ def sample_and_fetch(records, n, normal_frac, seed):
     normals = [r for r in records if r["is_normal"]]
     hemo = [r for r in records if not r["is_normal"]]
     rng.shuffle(normals)
-    rng.shuffle(hemo)
 
     n_normal_target = round(n * normal_frac)
     n_hemo_target = n - n_normal_target
+
+    label_matrix = np.array([[r[k] for k in SUBTYPES.values()] for r in hemo])
+    X_dummy = np.zeros((len(hemo), 1))
+    oversample_n = min(len(hemo), n_hemo_target * CANDIDATE_OVERSAMPLE)
+    splitter = MultilabelStratifiedShuffleSplit(
+        n_splits=1, test_size=oversample_n / len(hemo), random_state=seed)
+    _, cand_idx = next(splitter.split(X_dummy, label_matrix))
+    hemo_candidates = [hemo[i] for i in cand_idx]
+    rng.shuffle(hemo_candidates)
 
     chosen, missing = [], []
     consecutive_misses = 0
@@ -188,20 +221,16 @@ def sample_and_fetch(records, n, normal_frac, seed):
                 break
             attempt(r)
 
-        seen = defaultdict(int)
-        pool = list(hemo)
         n_hemo = 0
-        while pool and n_hemo < n_hemo_target:
-            def score(r):
-                present = [p for p in r["present_subtypes"].split("; ") if p]
-                return min((seen[p] for p in present), default=0)
-            pool.sort(key=score)
-            pick = pool.pop(0)
-            if not attempt(pick):
-                continue
-            n_hemo += 1
-            for p in (p for p in pick["present_subtypes"].split("; ") if p):
-                seen[p] += 1
+        for r in hemo_candidates:
+            if n_hemo >= n_hemo_target:
+                break
+            if attempt(r):
+                n_hemo += 1
+        if n_hemo < n_hemo_target:
+            print(f"\n[warn] candidate list exhausted -- got {n_hemo}/{n_hemo_target} "
+                  f"hemorrhage images. Raise CANDIDATE_OVERSAMPLE and re-run if you "
+                  f"need the full target.")
     except TooManyConsecutiveMisses as e:
         print(f"\n[warn] {e} Returning the {len(chosen)} fetched so far instead "
               f"of hanging -- investigate before re-running (see module "
