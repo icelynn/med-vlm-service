@@ -25,7 +25,7 @@ import csv
 import json
 from pathlib import Path
 
-from metrics import evaluate, prf1, per_class_counts
+from metrics import evaluate, prf1, per_class_counts, bootstrap_f1_ci, binarize
 from parse_answer import SUBTYPES
 
 EVAL_DIR = Path(__file__).resolve().parent
@@ -79,12 +79,22 @@ def main():
     any_pred = [r["pred_any_hem"] for r in results]
     a_tp, a_fp, a_fn = per_class_counts(any_gt, any_pred, args.uncertain)
     any_f1 = prf1(a_tp, a_fp, a_fn)
+    any_ci_lo, any_ci_hi = bootstrap_f1_ci(any_gt, any_pred, args.uncertain)
 
     # ---- STRETCH: per-subtype P/R/F1 + macro-F1 -------------------------
     gt_by_class = {k: [int(gt[r["image_file"]][k]) for r in results] for k in SUBTYPES}
     pred_by_class = {k: [r[f"pred_{k}"] for r in results] for k in SUBTYPES}
     per_class, macro_f1 = evaluate(gt_by_class, pred_by_class, args.uncertain)
     support = {k: sum(v) for k, v in gt_by_class.items()}  # GT positives per class
+    subtype_ci = {k: bootstrap_f1_ci(gt_by_class[k], pred_by_class[k], args.uncertain)
+                  for k in SUBTYPES}
+
+    # ---- danger: hemorrhage slices missed entirely (Any-hem FN) ---------
+    dangerous_fn = [r for r, g, p in zip(results, any_gt, any_pred)
+                    if binarize(g, args.uncertain) == 1 and binarize(p, args.uncertain) == 0]
+    dangerous_by_subtype = {k: sum(int(gt[r["image_file"]][k]) for r in dangerous_fn)
+                             for k in SUBTYPES}
+    n_hemorrhage = sum(any_gt)
 
     # ---- report ---------------------------------------------------------
     print(f"\n{'='*64}")
@@ -98,14 +108,23 @@ def main():
 
     print(f"\n[HEADLINE] Any-hemorrhage (binary triage)")
     print(f"  P={any_f1.precision:.3f}  R={any_f1.recall:.3f}  F1={any_f1.f1:.3f}"
-          f"  (tp={a_tp} fp={a_fp} fn={a_fn})")
+          f"  (tp={a_tp} fp={a_fp} fn={a_fn})"
+          f"  95% CI=[{any_ci_lo:.3f}, {any_ci_hi:.3f}]")
+
+    print(f"\n[danger] hemorrhage slices missed entirely (predicted NO hemorrhage)")
+    print(f"  {len(dangerous_fn)}/{n_hemorrhage} hemorrhage slices "
+          f"({len(dangerous_fn)/n_hemorrhage:.1%} of all hemorrhage slices)" if n_hemorrhage
+          else "  no hemorrhage-positive slices in this set")
+    for k in SUBTYPES:
+        print(f"    {k}: {dangerous_by_subtype[k]}")
 
     print(f"\n[stretch] per-subtype")
-    print(f"  {'subtype':<6} {'P':>6} {'R':>6} {'F1':>6} {'TP':>4} {'FP':>4} {'FN':>4} {'sup':>4}")
+    print(f"  {'subtype':<6} {'P':>6} {'R':>6} {'F1':>6} {'TP':>4} {'FP':>4} {'FN':>4} {'sup':>4}  95% CI")
     for k in SUBTYPES:
         r = per_class[k]
+        ci_lo, ci_hi = subtype_ci[k]
         print(f"  {k:<6} {r.precision:>6.3f} {r.recall:>6.3f} {r.f1:>6.3f} "
-              f"{r.tp:>4} {r.fp:>4} {r.fn:>4} {support[k]:>4}")
+              f"{r.tp:>4} {r.fp:>4} {r.fn:>4} {support[k]:>4}  [{ci_lo:.3f}, {ci_hi:.3f}]")
     print(f"  macro-F1 = {macro_f1:.4f}")
 
     summary = {
@@ -115,13 +134,21 @@ def main():
         "refusal_rate": n_refused / n,
         "method_counts": method_counts,
         "any_hemorrhage": {"precision": any_f1.precision, "recall": any_f1.recall,
-                           "f1": any_f1.f1, "tp": a_tp, "fp": a_fp, "fn": a_fn},
+                           "f1": any_f1.f1, "tp": a_tp, "fp": a_fp, "fn": a_fn,
+                           "f1_ci95": [any_ci_lo, any_ci_hi]},
         "per_subtype": {k: {"precision": per_class[k].precision,
                             "recall": per_class[k].recall, "f1": per_class[k].f1,
                             "tp": per_class[k].tp, "fp": per_class[k].fp,
-                            "fn": per_class[k].fn, "support": support[k]}
+                            "fn": per_class[k].fn, "support": support[k],
+                            "f1_ci95": list(subtype_ci[k])}
                         for k in SUBTYPES},
         "macro_f1": macro_f1,
+        "dangerous_fn": {
+            "n": len(dangerous_fn),
+            "rate_of_hemorrhage_slices": len(dangerous_fn) / n_hemorrhage if n_hemorrhage else 0.0,
+            "by_subtype": dangerous_by_subtype,
+            "image_files": [r["image_file"] for r in dangerous_fn],
+        },
     }
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
