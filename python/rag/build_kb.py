@@ -7,12 +7,12 @@ Build the text knowledge base for R1 (text RAG ablation).
 local ChromaDB collection.
 
 This is a CLOSED set of 5 documents -- with only 5 candidates, "retrieve the
-most relevant K of N" is barely different from "return all N" (see Week3 plan
-§4 Day3 learning notes: retrieval's filtering value only shows up when the
-knowledge base is large and queries are discriminative). We still implement
-real embed-and-query retrieval rather than a hardcoded constant string, so the
-mechanism is genuine and `providers.py::build_context()` stays the one seam
-Week4's image retrieval (a real, large, non-trivial pool) plugs into.
+most relevant K of N" is barely different from "return all N" (retrieval's
+filtering value only shows up when the knowledge base is large and queries
+are discriminative). We still implement real embed-and-query retrieval rather
+than a hardcoded constant string, so the mechanism is genuine and
+`providers.py::build_context()` stays the one seam a planned image-retrieval
+ablation (a real, large, non-trivial pool) can plug into.
 
 Run once (or whenever the descriptions change):
     python build_kb.py
@@ -26,7 +26,7 @@ from chromadb.utils import embedding_functions
 RAG_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "rag"
 CHROMA_DIR = RAG_DIR / "chroma"
 COLLECTION_NAME = "ich_subtypes"
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # decided in Week3 plan §3: light, CPU-fine
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # light, CPU-fine
 
 # Standard neuroradiology teaching-point descriptions (location/shape/density),
 # the kind of textbook knowledge a text-RAG system would inject -- not derived

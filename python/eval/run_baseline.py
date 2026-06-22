@@ -112,8 +112,8 @@ def main():
     ap.add_argument("--images", default=str(IMAGES_DIR))
     ap.add_argument("--out", default=str(DATA_DIR / "results.jsonl"))
     ap.add_argument("--context", default="none", choices=["none", "text", "image"],
-                    help="retrieval-injection provider (R1=text, R2/Week4=image); "
-                         "default 'none' keeps the Week2 baseline unchanged")
+                    help="retrieval-injection provider (R1=text, R2=image, planned); "
+                         "default 'none' keeps the No-RAG baseline unchanged")
     ap.add_argument("--max-new-tokens", type=int, default=64,
                     help="constrained answer is short; 64 is plenty")
     ap.add_argument("--max-image-size", type=int, default=896)
