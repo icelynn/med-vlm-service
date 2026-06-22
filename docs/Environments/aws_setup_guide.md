@@ -32,7 +32,10 @@ aws ec2 authorize-security-group-ingress \
     --cidr "0.0.0.0/0"
 ```
 
-**Ollama port (11434) — do NOT open it; no app-level auth needed**
+> ⚠️ **DEPRECATED — the entire Ollama section below is retired (2026-06-21).**
+> The demo backend was unified onto **HF + transformers** (the same engine as the eval track), so Ollama is no longer installed, pulled, or served. Everything from here to the end of the "Re-provisioning Ollama" block is kept **only as a historical record** of the abandoned Ollama path — do not run it as part of setup. Root cause and the full decision trail: [Ollama Setup Journey](./ollama_setup_journey.md) and challenge ⑧ in the core-challenges log. There is no demo-only backend step anymore: `demo` and `dev` both load models directly via transformers.
+
+**~~Ollama port (11434) — do NOT open it; no app-level auth needed~~** *(retired — see banner above)*
 Decision (2026-06-20): the FastAPI proxy (`python/src/`) and Ollama run on the **same** EC2 instance, so the proxy reaches Ollama via `127.0.0.1:11434`. Ollama's own API has no authentication mechanism — security comes entirely from **not being reachable from outside the instance**, not from a token.
 
 ```bash
@@ -133,6 +136,8 @@ ollama pull qwen3-vl:4b
 ollama pull medgemma:4b
 ollama list                    # confirm both are present before starting the FastAPI proxy
 ```
+
+*(End of the retired Ollama section. The HF + transformers demo backend needs no per-boot model-server provisioning beyond the shared instance-store mount + `HF_HOME=/mnt/hf` already documented for the eval track.)*
 
 **CloudWatch idle auto-stop (cost control)**
 Monitor `CPUUtilization` to detect true idleness. After 30 continuous minutes below 2%, the instance auto-stops (billing halts; the EBS volume is retained).
