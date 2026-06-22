@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Offline, zero-cost tests for the SSE streaming service.
 
-No GPU, no Ollama, no paid API calls. The upstream model is faked at the httpx
-layer (for the router-parsing tests) and at the dispatch layer (for the endpoint
-framing tests), so these run anywhere and are deterministic.
+No GPU, no paid API calls. The upstream model is faked at the httpx layer (for
+the router-parsing tests) and at the dispatch layer (for the endpoint framing
+tests), so these run anywhere and are deterministic.
 
 Run:  ./.venv/Scripts/python.exe python/tests/test_streaming.py
 """
@@ -18,7 +18,6 @@ os.environ.setdefault("ENV", "test")
 os.environ.setdefault("MODEL_ROLE", "main")
 os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
 os.environ.setdefault("OPENROUTER_API_URL", "http://upstream/v1/chat")
-os.environ.setdefault("OLLAMA_API_URL", "http://upstream/api/chat")
 
 import inference  # noqa: E402
 import main  # noqa: E402
@@ -71,22 +70,6 @@ def _restore_httpx():
 
 
 # --- assertions --------------------------------------------------------------
-async def test_dev_router_parses_ndjson():
-    """Ollama NDJSON lines -> ordered token stream, stops at done=true."""
-    lines = [
-        '{"message":{"content":"No "},"done":false}',
-        '{"message":{"content":"hemorrhage."},"done":false}',
-        "",  # blank line must be skipped
-        '{"message":{"content":""},"done":true}',
-    ]
-    _patch_httpx(lines)
-    try:
-        toks = [t async for t in inference._stream_ollama("b64", "p", "s")]
-    finally:
-        _restore_httpx()
-    assert toks == ["No ", "hemorrhage."], toks
-
-
 async def test_local_router_parses_sse():
     """OpenRouter SSE 'data:' lines -> ordered token stream, stops at [DONE]."""
     lines = [
@@ -108,7 +91,7 @@ async def test_upstream_error_raises():
     _patch_httpx([], status=500)
     try:
         try:
-            async for _ in inference._stream_ollama("b64", "p", "s"):
+            async for _ in inference._stream_openrouter("b64", "p", "s"):
                 pass
             raised = False
         except Exception as e:
@@ -116,22 +99,6 @@ async def test_upstream_error_raises():
     finally:
         _restore_httpx()
     assert raised, "expected a 500 error to propagate"
-
-
-async def test_ollama_skips_malformed_json():
-    """A truncated / non-JSON NDJSON line is skipped, not fatal to the stream."""
-    lines = [
-        '{"message":{"content":"No "},"done":false}',
-        '{"message":{"content":"hemo',  # truncated JSON (TCP boundary) -> skipped
-        '{"message":{"content":"rrhage."},"done":false}',
-        '{"message":{"content":""},"done":true}',
-    ]
-    _patch_httpx(lines)
-    try:
-        toks = [t async for t in inference._stream_ollama("b64", "p", "s")]
-    finally:
-        _restore_httpx()
-    assert toks == ["No ", "rrhage."], toks
 
 
 async def test_openrouter_skips_malformed_and_choiceless():
@@ -215,10 +182,8 @@ async def test_endpoint_error_then_done():
 
 async def _main():
     tests = [
-        test_dev_router_parses_ndjson,
         test_local_router_parses_sse,
         test_upstream_error_raises,
-        test_ollama_skips_malformed_json,
         test_openrouter_skips_malformed_and_choiceless,
         test_missing_openrouter_key_clear_error,
         test_endpoint_sse_framing,
