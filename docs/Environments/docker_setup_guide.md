@@ -53,8 +53,8 @@ docker run -d -p 8000:8000 --env-file .env --name medical_agent med-vlm-service
 | Symptom | Root cause | Fix |
 |---|---|---|
 | `docker` requires sudo / permission error | Did not re-login after joining the docker group | `exit` and reconnect via SSH |
-| `All connection attempts failed` | `httpx` is refused when opening an outbound TCP connection; commonly because `ENV=dev` points at Ollama but no Ollama service is listening on host port 11434 | Set `.env` to `ENV=local` (route via OpenRouter) and restart the container |
-| `Ollama API error (HTTP 500)` | Schema mismatch: with `ENV=dev`, the code packages requests in Ollama's format, but the target API points back to OpenRouter, whose gateway cannot parse the non-OpenAI `image_url` nesting | Switch `.env` back to `ENV=local` to use the standard `_call_openrouter()` path |
+| ~~`All connection attempts failed`~~ *(retired)* | ~~`httpx` is refused when opening an outbound TCP connection; commonly because `ENV=dev` points at Ollama but no Ollama service is listening on host port 11434~~ — **N/A since 2026-06-21**: Ollama retired, no service on 11434 by design | ~~Set `.env` to `ENV=local`~~ — demo/dev now load models in-process via transformers |
+| ~~`Ollama API error (HTTP 500)`~~ *(retired)* | ~~Schema mismatch: with `ENV=dev`, the code packages requests in Ollama's format…~~ — **N/A since 2026-06-21** (no Ollama request path remains) | — |
 | `exec: "curl": executable file not found in $PATH` | The lightweight `python:3.11-slim` base image ships without `curl`, so `docker exec ... curl` fails | Use the container's built-in Python as a network probe (see Verification) |
 
 **Switch environment and restart the container**

@@ -21,8 +21,9 @@ The stack spans four layers, from underlying hardware up to the API surface:
    │
 [Driver]     NVIDIA Driver 550-server + DKMS
    │
-[Application] FastAPI (8000) + transformers / Ollama (11434)
+[Application] FastAPI (8000) + transformers
 ```
+> Note: an earlier design also ran an Ollama server on port 11434 for the demo backend. **Ollama was retired (2026-06-21)** — demo and eval now share a single transformers engine. Ollama mentions below are struck through and kept only as historical context.
 
 ## 2. Cloud Hardware Specification
 
@@ -40,7 +41,7 @@ The stack spans four layers, from underlying hardware up to the API surface:
 | OS base tools | `build-essential` `curl` `git` `python3-pip` `python3-venv` `ca-certificates` `gnupg` `lsb-release` | Compilation, downloads, version control, Python virtual environments |
 | GPU driver | `nvidia-driver-550-server`, `nvidia-dkms-550-server`, `ubuntu-drivers-common` | Detect and drive the T4 GPU |
 | Container engine | `docker-ce` `docker-ce-cli` `containerd.io` `docker-buildx-plugin` `docker-compose-plugin` | Containerized deployment of the FastAPI proxy (CPU-only; no GPU access from containers) |
-| Inference engine | Direct model loading via transformers / Ollama | Multimodal model inference, run natively on the host |
+| Inference engine | Direct model loading via transformers ~~/ Ollama~~ | Multimodal model inference, run natively on the host (~~Ollama~~ retired 2026-06-21; transformers only) |
 | Application framework | FastAPI (port 8000), `httpx` | Serves the `/analyze` image-analysis API |
 | Python ML | `torch` / `torchvision` (**must match the CUDA version — use cu121**) | Deep-learning tensor operations |
 
@@ -50,7 +51,7 @@ The stack spans four layers, from underlying hardware up to the API surface:
 |---|---|---|
 | 22 | SSH | Restrict to your own public IP |
 | 8000 | FastAPI microservice | Public (`0.0.0.0/0`) or scoped as needed |
-| 11434 | Ollama API | Initially host-only / intra-security-group only |
+| ~~11434~~ | ~~Ollama API~~ | ~~Initially host-only / intra-security-group only~~ — **retired 2026-06-21**, no longer used (demo runs in-process via transformers) |
 
 ## 5. Environment Variables (`.env`)
 
@@ -62,11 +63,15 @@ ENV=local
 OPENROUTER_API_KEY=your_full_OpenRouter_API_key
 OPENROUTER_MODEL=google/gemini-2.5-flash
 
-# Mode B: ENV=dev — call the Ollama engine deployed locally on EC2
-# Note: to bypass Docker network isolation, the IP must point to the host gateway 172.17.0.1
-ENV=dev
-OLLAMA_API_URL=http://172.17.0.1:11434
-OLLAMA_MODEL=llama3.2-vision
+# Mode B (RETIRED 2026-06-21): ENV=dev/demo formerly called a local Ollama engine on EC2.
+# Ollama was dropped (T4 CUDA kernel bug); dev (eval) and demo (served) now both load
+# models directly via HF transformers. The block below is kept only as historical context.
+# ENV=dev
+# OLLAMA_API_URL=http://172.17.0.1:11434
+# OLLAMA_MODEL=llama3.2-vision
+#
+# Current dev/demo: no OLLAMA_* vars; HF model ids default in python/src/config.py
+# (HF_MAIN_MODEL=Qwen/Qwen3-VL-4B-Instruct, HF_MEDICAL_MODEL=google/medgemma-4b-it).
 ```
 
 ## 6. Outcome Summary

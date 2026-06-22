@@ -1,5 +1,7 @@
 # Ollama Setup Journey (Demo Backend: Attempt and Retirement)
 
+> 🛑 **STATUS: RETIRED (2026-06-21).** Ollama is no longer part of the stack — the demo backend was unified onto **HF + transformers** (same engine as eval). This document is preserved intentionally as the decision log for *why* Ollama was tried and dropped; nothing in it is a current setup step.
+
 > This is the **full journey of attempting Ollama as the demo backend** — from a clean
 > install, through hitting an upstream CUDA bug, to two mitigation attempts, to finally
 > retiring Ollama in favor of HF transformers.

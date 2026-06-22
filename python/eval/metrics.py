@@ -22,6 +22,7 @@ Label encoding (per class, per slice):
 Keep it plain Python + stdlib. No numpy needed for the core logic.
 """
 
+import random
 from collections import namedtuple
 
 # present is the "positive" class for every pathology.
@@ -83,6 +84,31 @@ def prf1(tp, fp, fn):
     recall    = tp / (tp + fn) if (tp + fn) > 0 else 0.0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
     return PRF1(precision, recall, f1, tp, fp, fn)
+
+
+def bootstrap_f1_ci(gt, pred, uncertain_policy="negative", n_boot=2000, seed=42, alpha=0.05):
+    """Percentile bootstrap CI for F1 on ONE class, resampling studies (the
+    list index) with replacement.
+
+    Small eval sets (CT-ICH/RSNA ~150 slices) give noisy point estimates --
+    a wide CI here is the honest signal that the point F1 isn't well
+    determined, not a bug in this function.
+
+    Returns (lo, hi) at the (1-alpha) level, e.g. alpha=0.05 -> 95% CI.
+    """
+    rng = random.Random(seed)
+    n = len(gt)
+    boot_f1s = []
+    for _ in range(n_boot):
+        idx = [rng.randrange(n) for _ in range(n)]
+        g = [gt[i] for i in idx]
+        p = [pred[i] for i in idx]
+        tp, fp, fn = per_class_counts(g, p, uncertain_policy)
+        boot_f1s.append(prf1(tp, fp, fn).f1)
+    boot_f1s.sort()
+    lo = boot_f1s[int((alpha / 2) * n_boot)]
+    hi = boot_f1s[min(int((1 - alpha / 2) * n_boot), n_boot - 1)]
+    return lo, hi
 
 
 def evaluate(gt_by_class, pred_by_class, uncertain_policy="negative"):
@@ -153,8 +179,20 @@ def _run_self_test():
     return ok
 
 
+def _test_bootstrap_ci():
+    gt =   [1, 1, 0, 1, 0, 1, 0, 0, 1, 0]
+    pred = [1, 0, 0, 1, 0, 1, 1, 0, 0, 0]
+    point = prf1(*per_class_counts(gt, pred)).f1
+    lo, hi = bootstrap_f1_ci(gt, pred, n_boot=2000, seed=42)
+    ok = lo <= point <= hi and 0.0 <= lo <= hi <= 1.0
+    print(f"  {'ok' if ok else 'FAIL'}   point F1={point:.3f}  95% CI=[{lo:.3f}, {hi:.3f}]")
+    print("\n" + ("ALL TESTS PASSED" if ok else "TESTS FAILED — keep going"))
+    return ok
+
+
 if __name__ == "__main__":
     try:
         _run_self_test()
+        _test_bootstrap_ci()
     except NotImplementedError:
         print("metrics.py not implemented yet — fill in the TODO functions and re-run.")

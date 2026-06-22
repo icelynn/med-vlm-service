@@ -19,35 +19,8 @@ _hf_cache = {}  # model_id -> (processor, model); loaded lazily, kept resident
 _hf_lock = asyncio.Lock()  # one GPU, one generate() at a time
 
 
-async def _call_ollama(base64_image: str, prompt: str, system_prompt: str) -> str:
-    """(目前未使用；Ollama 在 T4 上有上游 CUDA bug，demo 已改走 _call_hf) 呼叫 EC2 上的 Ollama 引擎"""
-    payload = {
-        "model": config.model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt, "images": [base64_image]}
-        ],
-        "stream": False
-    }
-    async with httpx.AsyncClient() as client:
-        response = await client.post(config.OLLAMA_API_URL, json=payload, timeout=60.0)
-
-        # 檢查 HTTP 狀態碼
-        if response.status_code != 200:
-            error_detail = response.text
-            raise Exception(f"Ollama API 錯誤 (HTTP {response.status_code}): {error_detail}")
-
-        result = response.json()
-
-        # 檢查回應格式
-        if "message" not in result:
-            raise Exception(f"Ollama API 回應格式異常，缺少 'message' 欄位: {result}")
-
-        return result["message"]["content"]
-
-
 def _decode_image(base64_image: str) -> Image.Image:
-    """Base64 → PIL,並套用 Week 1 的 lesson:長邊縮到 896px 避免 vision-token 爆 VRAM。"""
+    """Base64 → PIL,長邊縮到 896px 避免 vision-token 爆 VRAM。"""
     image = Image.open(BytesIO(base64.b64decode(base64_image))).convert("RGB")
     image.thumbnail((_HF_MAX_IMAGE_SIZE, _HF_MAX_IMAGE_SIZE), Image.Resampling.LANCZOS)
     return image
@@ -93,7 +66,7 @@ def _build_hf_inputs(processor, model, image: Image.Image, prompt: str, system_p
 
 
 async def _call_hf(base64_image: str, prompt: str, system_prompt: str) -> str:
-    """demo 環境：直接用 HF transformers 跑（重用 eval 已驗證過的載入/推論邏輯，繞開 Ollama）"""
+    """demo 環境：直接用 HF transformers 跑（重用 eval 已驗證過的載入/推論邏輯）"""
     image = _decode_image(base64_image)
     async with _hf_lock:
         processor, model = await _load_hf_model()
@@ -183,7 +156,7 @@ def _resolve_service_backend() -> str:
             "本服務只服務 test(OpenRouter) 與 demo(HF transformers)。"
         )
     backend = config.backend
-    if backend not in ("openrouter", "ollama", "hf"):
+    if backend not in ("openrouter", "hf"):
         raise ValueError(f"[錯誤] 不支援的 ENV 設定: {config.ENV}")
     if config.model is None:
         raise ValueError(
@@ -203,39 +176,7 @@ async def generate_medical_report(base64_image: str, prompt: str, system_prompt:
     backend = _resolve_service_backend()
     if backend == "openrouter":
         return await _call_openrouter(base64_image, prompt, system_prompt)
-    if backend == "hf":
-        return await _call_hf(base64_image, prompt, system_prompt)
-    return await _call_ollama(base64_image, prompt, system_prompt)
-
-
-async def _stream_ollama(base64_image: str, prompt: str, system_prompt: str):
-    """demo 環境（串流版）：逐 token 讀取 Ollama 的 NDJSON 回應"""
-    payload = {
-        "model": config.model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt, "images": [base64_image]}
-        ],
-        "stream": True
-    }
-    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, read=None)) as client:
-        async with client.stream("POST", config.OLLAMA_API_URL, json=payload) as response:
-            if response.status_code != 200:
-                error_detail = (await response.aread()).decode("utf-8", "replace")
-                raise Exception(f"Ollama API 錯誤 (HTTP {response.status_code}): {error_detail}")
-
-            async for line in response.aiter_lines():
-                if not line.strip():
-                    continue
-                try:
-                    chunk = json.loads(line)
-                except json.JSONDecodeError:
-                    continue  # 跳過壞行（截斷/非 JSON），不中斷整串
-                token = chunk.get("message", {}).get("content", "")
-                if token:
-                    yield token
-                if chunk.get("done"):
-                    break
+    return await _call_hf(base64_image, prompt, system_prompt)
 
 
 async def _stream_hf(base64_image: str, prompt: str, system_prompt: str):
@@ -326,9 +267,7 @@ async def generate_medical_report_stream(base64_image: str, prompt: str, system_
     backend = _resolve_service_backend()
     if backend == "openrouter":
         gen = _stream_openrouter(base64_image, prompt, system_prompt)
-    elif backend == "hf":
-        gen = _stream_hf(base64_image, prompt, system_prompt)
     else:
-        gen = _stream_ollama(base64_image, prompt, system_prompt)
+        gen = _stream_hf(base64_image, prompt, system_prompt)
     async for token in gen:
         yield token
