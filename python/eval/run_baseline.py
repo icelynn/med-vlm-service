@@ -39,11 +39,13 @@ EVAL_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = EVAL_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "python" / "scripts"))
 sys.path.insert(0, str(PROJECT_ROOT / "python" / "src"))
+sys.path.insert(0, str(PROJECT_ROOT / "python" / "rag"))
 sys.path.insert(0, str(EVAL_DIR))
 
 from feasibility_check import load_model, run_inference, resolve_dtype  # noqa: E402
 from parse_answer import parse_answer, SUBTYPES  # noqa: E402
 from config import MODELS, config as svc_config  # noqa: E402
+from providers import build_context  # noqa: E402
 
 # The eval pipeline is the ENV=dev (HF + transformers) track. The default model comes
 # from the shared registry so model identities live in one place (config.py). Resolved
@@ -109,6 +111,9 @@ def main():
     ap.add_argument("--manifest", default=str(MANIFEST))
     ap.add_argument("--images", default=str(IMAGES_DIR))
     ap.add_argument("--out", default=str(DATA_DIR / "results.jsonl"))
+    ap.add_argument("--context", default="none", choices=["none", "text", "image"],
+                    help="retrieval-injection provider (R1=text, R2/Week4=image); "
+                         "default 'none' keeps the Week2 baseline unchanged")
     ap.add_argument("--max-new-tokens", type=int, default=64,
                     help="constrained answer is short; 64 is plenty")
     ap.add_argument("--max-image-size", type=int, default=896)
@@ -139,6 +144,11 @@ def main():
     processor, model, load_s = load_model(args.model, args.quant, dtype)
     print(f"[ok  ] model loaded in {load_s:.1f}s")
 
+    context = build_context(args.context)
+    system_prompt = f"{SYSTEM_PROMPT}\n\n{context}" if context else SYSTEM_PROMPT
+    if context:
+        print(f"[info] context provider={args.context} ({len(context)} chars injected)")
+
     images_dir = Path(args.images)
     n_parsed = n_refused = 0
     t_start = time.perf_counter()
@@ -149,7 +159,7 @@ def main():
                 print(f"[warn] missing image {row['image_file']} — skipped")
                 continue
             text, gen_s, n_tok = run_inference(
-                processor, model, str(img_path), USER_PROMPT, SYSTEM_PROMPT,
+                processor, model, str(img_path), USER_PROMPT, system_prompt,
                 args.max_new_tokens, args.max_image_size)
             parsed = parse_answer(text)
             n_parsed += int(parsed["parsed"])
