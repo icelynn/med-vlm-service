@@ -117,13 +117,16 @@ curl -X POST [http://127.0.0.1:8000/analyze](http://127.0.0.1:8000/analyze) \
 
 ## Evaluation Results
 
-The `dev` track (`python/eval/`) runs a controlled, reproducible evaluation protocol on the [CT-ICH](https://physionet.org/content/ct-ich/1.3.1/) dataset (150 stratified head-CT slices, intracranial hemorrhage detection). Every row below uses the same manifest, the same constrained prompt, and the same scoring code — only one factor changes per row (the model, or whether a retrieval context is injected), so differences are attributable to that one factor.
+The `dev` track (`python/eval/`) runs a controlled, reproducible evaluation protocol across two independent head-CT hemorrhage datasets: [CT-ICH](https://physionet.org/content/ct-ich/1.3.1/) (75-patient cohort, PhysioNet) and [RSNA Intracranial Hemorrhage Detection](https://www.kaggle.com/c/rsna-intracranial-hemorrhage-detection) (multi-institutional Kaggle challenge). 150 slices per dataset, drawn via multi-label stratified sampling so each sample's subtype prevalence and co-occurrence rate track the true population (not an artificially balanced subset). Every row uses the same manifest within its dataset, the same constrained prompt, and the same scoring code — only one factor changes per row (the model, or whether a retrieval context is injected).
 
 | Dataset | Method | n | Any-hem F1 | 95% CI | Precision | Recall | Hemorrhage slices missed entirely |
 |---|---|---|---|---|---|---|---|
 | CT-ICH | No-RAG (Qwen3-VL-4B) | 150 | 0.000 | [0.000, 0.000] | 0.000 | 0.000 | 100.0% (105/105) |
-| CT-ICH | Text-RAG | 150 | 0.018 | [0.000, 0.056] | 0.250 | 0.010 | 99.0% (104/105) |
-| CT-ICH | MedGemma-4B | 150 | 0.336 | [0.233, 0.439] | 0.846 | 0.210 | 79.0% (83/105) |
+| CT-ICH | Text-RAG | 150 | 0.000 | [0.000, 0.000] | 0.000 | 0.000 | 100.0% (105/105) |
+| CT-ICH | MedGemma-4B | 150 | 0.242 | [0.143, 0.345] | 0.789 | 0.143 | 85.7% (90/105) |
+| RSNA | No-RAG (Qwen3-VL-4B) | 150 | 0.158 | [0.073, 0.252] | 1.000 | 0.086 | 91.4% (96/105) |
+| RSNA | Text-RAG | 150 | 0.202 | [0.107, 0.298] | 0.857 | 0.114 | 88.6% (93/105) |
+| RSNA | MedGemma-4B | 150 | 0.568 | [0.464, 0.658] | 0.977 | 0.400 | 60.0% (63/105) |
 
 *CI = 95% bootstrap percentile interval (2000 resamples). A CI that does not cross 0 means the F1 is statistically distinguishable from a no-effect floor; a CI that hugs 0 means it isn't, regardless of the point estimate.*
 
@@ -132,14 +135,15 @@ Reproduce any row:
 HF_HOME=/mnt/hf MODEL_ROLE=main      python python/eval/run_baseline.py --out results.jsonl              # No-RAG
 HF_HOME=/mnt/hf MODEL_ROLE=main      python python/eval/run_baseline.py --context text --out results.jsonl  # Text-RAG
 HF_HOME=/mnt/hf MODEL_ROLE=medical_baseline python python/eval/run_baseline.py --out results.jsonl          # MedGemma-4B
+# add --manifest data/rsna/manifest.csv --images data/rsna/images for the RSNA rows
 python python/eval/score_baseline.py --results results.jsonl
 python python/eval/compare_runs.py   # regenerate the full comparison table from all summaries
 ```
 
 ### Honest limitations
 
-- **General-purpose VLMs floor out at this task.** A general vision-language model with no domain pretraining (Qwen3-VL-4B) detects essentially zero hemorrhages — not a tuning failure, but a perceptual ceiling: it cannot see what it was never trained to recognize.
-- **Domain pretraining helps, unevenly.** A medically pretrained model (MedGemma-4B) lifts recall to 0.21, but two of five hemorrhage subtypes (epidural, subdural) are still missed 100% of the time. "Domain pretraining helps" is true; "domain pretraining solves this" is not.
-- **Text knowledge cannot substitute for visual training.** Injecting textbook descriptions of each hemorrhage subtype (retrieval-augmented generation) left the floor-level result essentially unchanged (F1 0.000 -> 0.018, CI still hugging 0). The gap here is perceptual, not a missing-knowledge problem — which is why a text-knowledge fix doesn't move it.
-- **Single dataset, small n.** 150 slices from one source cohort; the bootstrap CIs above are the honest expression of how much that limits precision of the point estimates. Cross-dataset external validation (RSNA) is in progress.
+- **General-purpose VLMs floor out at this task, on both datasets.** A general vision-language model with no domain pretraining (Qwen3-VL-4B) detects essentially zero hemorrhages on CT-ICH (F1=0.000) and barely more on RSNA (F1=0.158, recall=0.086) — not a tuning failure, but a perceptual ceiling: it cannot reliably see what it was never trained to recognize.
+- **Domain pretraining helps, unevenly — and the size of the help is dataset-dependent.** MedGemma-4B scores F1=0.242 on CT-ICH but F1=0.568 on RSNA, with non-overlapping confidence intervals — the *same model, same prompt* performs very differently depending on which dataset it's looking at. We do not have a confirmed explanation for this gap; three candidate factors are plausible and not mutually exclusive: (1) RSNA's higher co-occurrence rate gives the binary "any hemorrhage" metric more chances to be right via any one of several simultaneous findings; (2) the two datasets' source images differ in lesion severity and/or windowing/post-processing pipeline — a controlled test (same 150 RSNA images, only swapping a 128px source for a 512px one) found the *higher-resolution* source scored *worse* (F1=0.331 vs 0.568), with a directly visible loss of hyperdensity contrast on the same case across the two sources, pointing at windowing rather than resolution as the operative variable; (3) RSNA is one of the most widely discussed public medical-imaging benchmarks since 2019 and we cannot rule out the model's pretraining corpus having had some exposure to it, versus the far more obscure, access-gated CT-ICH. We report all three candidates rather than picking one — the uncertainty itself is the honest finding.
+- **Text knowledge cannot substitute for visual training.** Injecting textbook descriptions of each hemorrhage subtype (retrieval-augmented generation) left the floor-level result unchanged on CT-ICH (F1=0.000 either way) and within the same confidence interval as no-RAG on RSNA (0.202 vs 0.158, CIs overlap). The gap is perceptual, not a missing-knowledge problem — which is why a text-knowledge fix doesn't move it.
+- **Small n on both datasets.** 150 slices per dataset; the bootstrap CIs above are the honest expression of how much that limits precision of the point estimates, especially for rarer subtypes.
 - **Rule-based answer parsing, not a learned clinical labeler.** Free-text model output is parsed with a constrained-format-first, keyword-fallback parser (`python/eval/parse_answer.py`); parse-failure and refusal rates are reported as first-class metrics precisely so a low score can't be hand-waved away as "the parser didn't understand it" (both rates are 0% across all rows above).
