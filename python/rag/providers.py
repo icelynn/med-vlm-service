@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-build_context() -- the one retrieval-injection seam (Week3 plan §2/§4 Day3).
-=============================================================================
+build_context() -- the one retrieval-injection seam for the RAG ablations.
+============================================================================
 
-R1 (this week) plugs in text retrieval here. Week4's R2 (image retrieval)
-swaps in an image-similarity backend at this exact function -- the call site
-in run_baseline.py (`--context none|text|image`) never changes.
+The text-RAG ablation (R1) plugs in text retrieval here. The planned image-
+retrieval ablation (R2) swaps in an image-similarity backend at this exact
+function -- the call site in run_baseline.py (`--context none|text|image`)
+never changes.
 
-provider="none"  -> "" (Week2 baseline behaviour, unchanged)
+provider="none"  -> "" (No-RAG baseline behaviour, unchanged)
 provider="text"  -> embed `query`, retrieve top-k subtype descriptions from
                     the ChromaDB KB built by build_kb.py, format as a context
                     block appended to the system prompt.
@@ -62,6 +63,6 @@ def build_context(provider, query=DEFAULT_QUERY):
         )
     if provider == "image":
         raise NotImplementedError(
-            "image retrieval is Week4 R2 -- swap in the image-similarity "
-            "backend here, same call site")
+            "image retrieval (R2) is not implemented yet -- swap in the "
+            "image-similarity backend here, same call site")
     raise ValueError(f"unknown context provider: {provider!r}")
