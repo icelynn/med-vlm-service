@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 Project: Multimodal Medical AI Microservice - End-to-End Inference Engine
-Tech Stack: FastAPI + HTTPX + Ollama / OpenRouter (vision-language models)
+Tech Stack: FastAPI + HTTPX + HF transformers / OpenRouter (vision-language models)
 
 This service provides a secure RESTful API endpoint that accepts user-uploaded medical
 images (e.g., X-ray, CT, MRI) and diagnostic prompts, and asynchronously interacts with the
-Ollama / OpenRouter backend to produce multimodal diagnostic reports.
+inference backend to produce multimodal diagnostic reports. Backends: HF transformers
+(demo, in-process on GPU) or OpenRouter (test). Ollama was retired 2026-06-21.
 """
 
 import base64
@@ -27,7 +28,7 @@ logger = logging.getLogger("medical-vlm-service")
 # Initialize FastAPI application
 app = FastAPI(
 	title="Multimodal Medical AI Image Dialogue Microservice (MVP)",
-	description="Low-latency multimodal medical image diagnosis API (Qwen3-VL / MedGemma via Ollama or OpenRouter)",
+	description="Low-latency multimodal medical image diagnosis API (Qwen3-VL / MedGemma via HF transformers or OpenRouter)",
 	version="1.0.0"
 )
 
@@ -89,7 +90,7 @@ async def analyze_medical_image(
         image_bytes = await image.read()
         base64_image = base64.b64encode(image_bytes).decode("utf-8")
         
-        # 2. Call environment routing module (auto-detects local for OpenRouter, dev for Ollama)
+        # 2. Call environment routing module (test -> OpenRouter, demo -> HF transformers)
         logger.info("Dispatching multimodal core for medical image report generation...")
         report_content = await generate_medical_report(base64_image, prompt, SYSTEM_PROMPT)
         
