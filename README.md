@@ -44,8 +44,8 @@
     </tr>
     <tr>
       <td><code>demo</code></td>
-      <td>Ollama Engine</td>
-      <td><code>qwen3-vl:4b</code> (main) / <code>medgemma:4b</code> (medical baseline)</td>
+      <td>HF + Transformers (same engine as <code>dev</code>)</td>
+      <td><code>Qwen3-VL-4B</code> (main) / <code>MedGemma-4B</code> (medical baseline)</td>
       <td>AWS GPU Instance (CUDA Accelerated)</td>
     </tr>
   </tbody>
@@ -67,7 +67,8 @@ This project stands on the shoulders of giants within the open-source GenAI ecos
 - **[FastAPI](https://github.com/tiangolo/fastapi)** - High-performance, low-latency ASGI web framework for Python.
 - **[HTTPX](https://github.com/encode/httpx)** - Next-generation, fully asynchronous HTTP client utilized for internal multi-modal relay communications.
 - **[Docker](https://github.com/docker)** - OS-level virtualization to guarantee reproducible sandbox runs.
-- **[OpenRouter Labs / Ollama](https://openrouter.ai/)** - Advanced orchestration abstraction layers for unified Large Language Model execution.
+- **[OpenRouter Labs](https://openrouter.ai/)** - Unified cloud API orchestration layer used by the `test` environment.
+- **[Hugging Face Transformers](https://github.com/huggingface/transformers)** - Local GPU inference engine shared by the `dev` (evaluation) and `demo` (served) environments.
 
 ## Quick Start
 
@@ -83,11 +84,9 @@ OPENROUTER_API_URL=https://openrouter.ai/api/v1/chat/completions
 OPENROUTER_API_KEY=[your_sk_or_v1_openrouter_api_key_here]
 # OPENROUTER_MAIN_MODEL defaults in config.py
 
-# demo — Ollama on the AWS GPU instance
-OLLAMA_API_URL=http://localhost:11434/api/chat
-# OLLAMA_MAIN_MODEL / OLLAMA_MEDICAL_MODEL default to qwen3-vl:4b / medgemma:4b
-
-# dev — HF + Transformers (eval pipeline); HF model ids default in config.py
+# demo (served) and dev (eval pipeline) — both run HF + Transformers on the
+# AWS GPU instance; HF model ids default in config.py (HF_MAIN_MODEL /
+# HF_MEDICAL_MODEL override Qwen3-VL-4B / MedGemma-4B if set)
 ```
 
 > Backends are split by purpose: `dev` (HF + Transformers) is the **evaluation** track (`python/eval/run_baseline.py`) and produces all reported metrics; `test`/`demo` are the **served** proxy. Model identities live in one place — `python/src/config.py` (`MODELS` registry).
@@ -115,3 +114,32 @@ curl -X POST [http://127.0.0.1:8000/analyze](http://127.0.0.1:8000/analyze) \
   -F "prompt=Please systematically evaluate this chest radiography for clinical anomalies." \
   -F "image=@./data/test_images/normal_xray.jpg"
 ```
+
+## Evaluation Results
+
+The `dev` track (`python/eval/`) runs a controlled, reproducible evaluation protocol on the [CT-ICH](https://physionet.org/content/ct-ich/1.3.1/) dataset (150 stratified head-CT slices, intracranial hemorrhage detection). Every row below uses the same manifest, the same constrained prompt, and the same scoring code — only one factor changes per row (the model, or whether a retrieval context is injected), so differences are attributable to that one factor.
+
+| Dataset | Method | n | Any-hem F1 | 95% CI | Precision | Recall | Hemorrhage slices missed entirely |
+|---|---|---|---|---|---|---|---|
+| CT-ICH | No-RAG (Qwen3-VL-4B) | 150 | 0.000 | [0.000, 0.000] | 0.000 | 0.000 | 100.0% (105/105) |
+| CT-ICH | Text-RAG | 150 | 0.018 | [0.000, 0.056] | 0.250 | 0.010 | 99.0% (104/105) |
+| CT-ICH | MedGemma-4B | 150 | 0.336 | [0.233, 0.439] | 0.846 | 0.210 | 79.0% (83/105) |
+
+*CI = 95% bootstrap percentile interval (2000 resamples). A CI that does not cross 0 means the F1 is statistically distinguishable from a no-effect floor; a CI that hugs 0 means it isn't, regardless of the point estimate.*
+
+Reproduce any row:
+```bash
+HF_HOME=/mnt/hf MODEL_ROLE=main      python python/eval/run_baseline.py --out results.jsonl              # No-RAG
+HF_HOME=/mnt/hf MODEL_ROLE=main      python python/eval/run_baseline.py --context text --out results.jsonl  # Text-RAG
+HF_HOME=/mnt/hf MODEL_ROLE=medical_baseline python python/eval/run_baseline.py --out results.jsonl          # MedGemma-4B
+python python/eval/score_baseline.py --results results.jsonl
+python python/eval/compare_runs.py   # regenerate the full comparison table from all summaries
+```
+
+### Honest limitations
+
+- **General-purpose VLMs floor out at this task.** A general vision-language model with no domain pretraining (Qwen3-VL-4B) detects essentially zero hemorrhages — not a tuning failure, but a perceptual ceiling: it cannot see what it was never trained to recognize.
+- **Domain pretraining helps, unevenly.** A medically pretrained model (MedGemma-4B) lifts recall to 0.21, but two of five hemorrhage subtypes (epidural, subdural) are still missed 100% of the time. "Domain pretraining helps" is true; "domain pretraining solves this" is not.
+- **Text knowledge cannot substitute for visual training.** Injecting textbook descriptions of each hemorrhage subtype (retrieval-augmented generation) left the floor-level result essentially unchanged (F1 0.000 -> 0.018, CI still hugging 0). The gap here is perceptual, not a missing-knowledge problem — which is why a text-knowledge fix doesn't move it.
+- **Single dataset, small n.** 150 slices from one source cohort; the bootstrap CIs above are the honest expression of how much that limits precision of the point estimates. Cross-dataset external validation (RSNA) is in progress.
+- **Rule-based answer parsing, not a learned clinical labeler.** Free-text model output is parsed with a constrained-format-first, keyword-fallback parser (`python/eval/parse_answer.py`); parse-failure and refusal rates are reported as first-class metrics precisely so a low score can't be hand-waved away as "the parser didn't understand it" (both rates are 0% across all rows above).
