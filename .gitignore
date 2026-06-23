@@ -31,6 +31,8 @@ data/ct_ich/images/
 # stage_2_train.csv + spot-check samples, and rendered images) — manifests only
 data/rsna/_raw/
 data/rsna/images/
+data/rsna/pool_images/
+data/rsna/images_histmatch/
 
 # RAG vector index (rebuildable from python/rag/build_kb.py)
 data/rag/
