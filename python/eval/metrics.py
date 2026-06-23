@@ -111,6 +111,60 @@ def bootstrap_f1_ci(gt, pred, uncertain_policy="negative", n_boot=2000, seed=42,
     return lo, hi
 
 
+def paired_bootstrap_f1_diff(gt, pred_a, pred_b, uncertain_policy="negative",
+                             n_boot=2000, seed=42):
+    """Paired bootstrap for the F1 difference between two methods (B - A) on the
+    SAME eval set, scored against the same ground truth.
+
+    Both methods are evaluated on the *same* resampled indices each iteration,
+    so the resampling noise that's common to both cancels -- this has more
+    power to detect a real difference than asking whether two independent
+    per-method CIs (bootstrap_f1_ci) happen to overlap. Works regardless of
+    whether the baseline F1 is 0 (e.g. CT-ICH) or non-zero (e.g. RSNA).
+
+    pred_a is the baseline (e.g. R1 text-RAG), pred_b the contender (e.g. R2
+    image retrieval); a positive diff means B scored higher.
+
+    Returns dict:
+        f1_a, f1_b   : point F1 of each method on the full set
+        diff         : f1_b - f1_a (point estimate)
+        ci95         : (lo, hi) 95% percentile interval of the bootstrap diff
+        p_value      : two-sided, fraction of bootstrap diffs on the "no
+                       improvement" side x2 (clamped to <= 1.0) -- small means
+                       B is significantly different from A.
+    """
+    rng = random.Random(seed)
+    n = len(gt)
+
+    def _f1(g, p):
+        tp, fp, fn = per_class_counts(g, p, uncertain_policy)
+        return prf1(tp, fp, fn).f1
+
+    f1_a = _f1(gt, pred_a)
+    f1_b = _f1(gt, pred_b)
+    point_diff = f1_b - f1_a
+
+    diffs = []
+    for _ in range(n_boot):
+        idx = [rng.randrange(n) for _ in range(n)]
+        g = [gt[i] for i in idx]
+        da = _f1(g, [pred_a[i] for i in idx])
+        db = _f1(g, [pred_b[i] for i in idx])
+        diffs.append(db - da)
+    diffs.sort()
+    lo = diffs[int(0.025 * n_boot)]
+    hi = diffs[min(int(0.975 * n_boot), n_boot - 1)]
+
+    # Two-sided p-value: how often the bootstrap diff lands on the opposite
+    # side of 0 from the observed effect (the side that would mean "no
+    # improvement"), doubled for two-sidedness.
+    n_wrong_side = sum(1 for d in diffs if (d <= 0 if point_diff > 0 else d >= 0))
+    p_value = min(1.0, 2 * n_wrong_side / n_boot)
+
+    return {"f1_a": f1_a, "f1_b": f1_b, "diff": point_diff,
+            "ci95": (lo, hi), "p_value": p_value}
+
+
 def evaluate(gt_by_class, pred_by_class, uncertain_policy="negative"):
     """Top-level metric.
 
@@ -190,9 +244,37 @@ def _test_bootstrap_ci():
     return ok
 
 
+def _test_paired_bootstrap():
+    # 20 studies. pred_a (baseline) gets none of the positives; pred_b (contender)
+    # catches several of them with no false positives -> B should be clearly,
+    # significantly better, so diff > 0 and p_value small.
+    gt     = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
+    pred_a = [0] * 20
+    pred_b = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    r = paired_bootstrap_f1_diff(gt, pred_a, pred_b, n_boot=2000, seed=42)
+    ok = (
+        r["f1_a"] == 0.0 and r["f1_b"] > 0.0          # baseline floors, contender doesn't
+        and r["diff"] > 0.0                            # improvement is positive
+        and r["ci95"][0] <= r["diff"] <= r["ci95"][1]  # point diff inside its own CI
+        and r["p_value"] < 0.05                        # and it's significant
+    )
+    print(f"  {'ok' if ok else 'FAIL'}   diff={r['diff']:.3f} "
+          f"CI=[{r['ci95'][0]:.3f}, {r['ci95'][1]:.3f}] p={r['p_value']:.4f}")
+
+    # Identical predictions -> zero diff, definitely not significant.
+    r2 = paired_bootstrap_f1_diff(gt, pred_b, pred_b, n_boot=2000, seed=42)
+    ok2 = r2["diff"] == 0.0 and r2["p_value"] >= 0.05
+    print(f"  {'ok' if ok2 else 'FAIL'}   identical preds: diff={r2['diff']:.3f} p={r2['p_value']:.4f}")
+
+    passed = ok and ok2
+    print("\n" + ("ALL TESTS PASSED" if passed else "TESTS FAILED — keep going"))
+    return passed
+
+
 if __name__ == "__main__":
     try:
         _run_self_test()
         _test_bootstrap_ci()
+        _test_paired_bootstrap()
     except NotImplementedError:
         print("metrics.py not implemented yet — fill in the TODO functions and re-run.")
