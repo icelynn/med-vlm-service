@@ -14,6 +14,7 @@ import json
 import logging
 from io import BytesIO
 from pathlib import Path
+from typing import Optional
 from PIL import Image
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -83,16 +84,18 @@ def preprocess_and_compress_image(image_bytes: bytes, max_size: int = 1120, qual
 @app.post("/analyze")
 async def analyze_medical_image(
     prompt: str = Form(...),
-    image: UploadFile = File(...)
+    image: UploadFile = File(...),
+    two_stage: Optional[bool] = Form(None),
 ):
     try:
         # 1. Asynchronously read image raw binary data and convert to Base64 string
         image_bytes = await image.read()
         base64_image = base64.b64encode(image_bytes).decode("utf-8")
-        
+
         # 2. Call environment routing module (test -> OpenRouter, demo -> HF transformers)
         logger.info("Dispatching multimodal core for medical image report generation...")
-        report_content = await generate_medical_report(base64_image, prompt, SYSTEM_PROMPT)
+        report_content = await generate_medical_report(base64_image, prompt, SYSTEM_PROMPT,
+                                                        two_stage=two_stage)
         
         # 3. Return structured report
         return {"report": report_content}
@@ -108,7 +111,8 @@ async def analyze_medical_image(
 @app.post("/analyze/stream")
 async def analyze_medical_image_stream(
     prompt: str = Form(...),
-    image: UploadFile = File(...)
+    image: UploadFile = File(...),
+    two_stage: Optional[bool] = Form(None),
 ):
     """SSE variant of /analyze: streams the report token-by-token as text/event-stream.
 
@@ -121,7 +125,8 @@ async def analyze_medical_image_stream(
     async def event_generator():
         logger.info("Dispatching streaming multimodal inference...")
         try:
-            async for token in generate_medical_report_stream(base64_image, prompt, SYSTEM_PROMPT):
+            async for token in generate_medical_report_stream(base64_image, prompt, SYSTEM_PROMPT,
+                                                               two_stage=two_stage):
                 yield f"data: {json.dumps({'delta': token})}\n\n"
         except Exception as e:
             logger.error(f"Streaming inference failed: {str(e)}")

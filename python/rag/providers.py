@@ -122,11 +122,11 @@ def retrieve_image_exemplars(image_path, k=3, index_dir=IMAGE_INDEX_DIR,
 
 def build_context(provider, query=DEFAULT_QUERY, image_path=None,
                   image_index_dir=IMAGE_INDEX_DIR, image_pool_dir=POOL_IMAGES_DIR,
-                  image_random_baseline=False):
+                  image_random_baseline=False, text_k=5):
     if provider == "none":
         return ""
     if provider == "text":
-        docs = retrieve_text(query)
+        docs = retrieve_text(query, k=text_k)
         bullets = "\n".join(f"- {d}" for d in docs)
         return (
             "Reference imaging findings for hemorrhage subtypes (background "
