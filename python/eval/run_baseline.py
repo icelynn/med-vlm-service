@@ -42,7 +42,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "python" / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "python" / "rag"))
 sys.path.insert(0, str(EVAL_DIR))
 
-from feasibility_check import load_model, run_inference, resolve_dtype  # noqa: E402
+from feasibility_check import load_model, run_inference, run_inference_fewshot, resolve_dtype  # noqa: E402
 from parse_answer import parse_answer, SUBTYPES  # noqa: E402
 from config import MODELS, config as svc_config  # noqa: E402
 from providers import build_context  # noqa: E402
@@ -114,6 +114,17 @@ def main():
     ap.add_argument("--context", default="none", choices=["none", "text", "image"],
                     help="retrieval-injection provider (R1=text, R2=image, planned); "
                          "default 'none' keeps the No-RAG baseline unchanged")
+    ap.add_argument("--image-index-dir", default=None,
+                    help="--context image only: override the BiomedCLIP index dir "
+                         "(default = R2-C's RSNA-pool index; pass the R2-B "
+                         "harmonized index to retrieve against CT-ICH instead)")
+    ap.add_argument("--image-pool-dir", default=None,
+                    help="--context image only: override the pool images dir "
+                         "(pairs with --image-index-dir)")
+    ap.add_argument("--image-random", action="store_true",
+                    help="--context image only: draw k random pool exemplars instead "
+                         "of retrieving by similarity -- a control to isolate retrieval "
+                         "quality from \"having any few-shot exemplar\" (核心難題⑫ §0j)")
     ap.add_argument("--max-new-tokens", type=int, default=64,
                     help="constrained answer is short; 64 is plenty")
     ap.add_argument("--max-image-size", type=int, default=896)
@@ -144,10 +155,27 @@ def main():
     processor, model, load_s = load_model(args.model, args.quant, dtype)
     print(f"[ok  ] model loaded in {load_s:.1f}s")
 
-    context = build_context(args.context)
-    system_prompt = f"{SYSTEM_PROMPT}\n\n{context}" if context else SYSTEM_PROMPT
-    if context:
-        print(f"[info] context provider={args.context} ({len(context)} chars injected)")
+    # R2 (image context) retrieves per-slice -- the nearest pool exemplars differ
+    # for every query image -- so unlike none/text it can't be built once before
+    # the loop; system_prompt stays plain and the few-shot images are spliced in
+    # per-slice via run_inference_fewshot instead.
+    image_context_kwargs = {}
+    if args.image_index_dir:
+        image_context_kwargs["image_index_dir"] = args.image_index_dir
+    if args.image_pool_dir:
+        image_context_kwargs["image_pool_dir"] = args.image_pool_dir
+    if args.image_random:
+        image_context_kwargs["image_random_baseline"] = True
+    if args.context == "image":
+        system_prompt = SYSTEM_PROMPT
+        print(f"[info] context provider=image (per-slice retrieval, built inside the loop)"
+              + (f"  index_dir={args.image_index_dir}" if args.image_index_dir else "")
+              + ("  RANDOM-BASELINE" if args.image_random else ""))
+    else:
+        context = build_context(args.context)
+        system_prompt = f"{SYSTEM_PROMPT}\n\n{context}" if context else SYSTEM_PROMPT
+        if context:
+            print(f"[info] context provider={args.context} ({len(context)} chars injected)")
 
     images_dir = Path(args.images)
     n_parsed = n_refused = 0
@@ -158,9 +186,15 @@ def main():
             if not img_path.is_file():
                 print(f"[warn] missing image {row['image_file']} — skipped")
                 continue
-            text, gen_s, n_tok = run_inference(
-                processor, model, str(img_path), USER_PROMPT, system_prompt,
-                args.max_new_tokens, args.max_image_size)
+            if args.context == "image":
+                exemplars = build_context("image", image_path=str(img_path), **image_context_kwargs)
+                text, gen_s, n_tok = run_inference_fewshot(
+                    processor, model, str(img_path), exemplars, USER_PROMPT, system_prompt,
+                    args.max_new_tokens, args.max_image_size)
+            else:
+                text, gen_s, n_tok = run_inference(
+                    processor, model, str(img_path), USER_PROMPT, system_prompt,
+                    args.max_new_tokens, args.max_image_size)
             parsed = parse_answer(text)
             n_parsed += int(parsed["parsed"])
             n_refused += int(parsed["refused"])

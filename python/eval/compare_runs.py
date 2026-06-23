@@ -26,12 +26,21 @@ DATA_DIR = PROJECT_ROOT / "data"
 
 # (dataset, method, summary_path) -- summary_path is relative to DATA_DIR.
 RUNS = [
-    ("CT-ICH", "No-RAG (Qwen3-VL-4B)",  "ct_ich/baseline_summary.json"),
-    ("CT-ICH", "Text-RAG (R1)",         "ct_ich/summary_rag.json"),
-    ("CT-ICH", "MedGemma-4B (B)",       "ct_ich/summary_medgemma.json"),
-    ("RSNA",   "No-RAG (Qwen3-VL-4B)",  "rsna/summary.json"),
-    ("RSNA",   "Text-RAG (R1)",         "rsna/summary_rag.json"),
-    ("RSNA",   "MedGemma-4B (B)",       "rsna/summary_medgemma.json"),
+    ("CT-ICH", "No-RAG (Qwen3-VL-4B)",                  "ct_ich/baseline_summary.json"),
+    ("CT-ICH", "Text-RAG (R1)",                         "ct_ich/summary_rag.json"),
+    ("CT-ICH", "MedGemma-4B (B)",                       "ct_ich/summary_medgemma.json"),
+    ("CT-ICH", "Image-Retrieval (R2-B)",                "ct_ich/summary_imageretrieval.json"),
+    ("CT-ICH", "Image-Retrieval (R2-B, random control)", "ct_ich/summary_imageretrieval_random.json"),
+    ("RSNA",   "No-RAG (Qwen3-VL-4B)",                  "rsna/summary.json"),
+    ("RSNA",   "Text-RAG (R1)",                         "rsna/summary_rag.json"),
+    ("RSNA",   "MedGemma-4B (B)",                       "rsna/summary_medgemma.json"),
+    ("RSNA",   "Image-Retrieval (R2-C, res-matched)",   "rsna/summary_imageretrieval_128matched.json"),
+    ("RSNA",   "Image-Retrieval (R2-C, res-mismatched)", "rsna/summary_imageretrieval.json"),
+    ("RSNA",   "Image-Retrieval (R2-C, random control)", "rsna/summary_imageretrieval_128matched_random.json"),
+    ("RSNA",   "Image-Retrieval (R2-C, res+intensity-matched)", "rsna/summary_imageretrieval_128harmonized.json"),
+    ("RSNA",   "Image-Retrieval (R2-C, res+intensity, random control)", "rsna/summary_imageretrieval_128harmonized_random.json"),
+    ("RSNA",   "Image-Retrieval (R2-C, pool@96px)",         "rsna/summary_imageretrieval_96.json"),
+    ("RSNA",   "Image-Retrieval (R2-C, pool@192px)",        "rsna/summary_imageretrieval_192.json"),
 ]
 
 

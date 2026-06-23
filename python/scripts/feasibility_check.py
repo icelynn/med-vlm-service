@@ -168,6 +168,76 @@ def run_inference(processor, model, image_path, prompt, system_prompt, max_new_t
     return text, gen_seconds, n_new
 
 
+def _load_capped_image(image_path, max_image_size):
+    image = Image.open(image_path).convert("RGB")
+    image.thumbnail((max_image_size, max_image_size), Image.Resampling.LANCZOS)
+    return image
+
+
+def run_inference_fewshot(processor, model, query_image_path, exemplars, prompt,
+                          system_prompt, max_new_tokens, max_image_size=896):
+    """Multi-image few-shot variant of run_inference, for R2 (image-retrieval
+    ablation): shows the model `exemplars` -- a list of (image_path,
+    label_text) pairs, each rendered as one user-image-turn + one
+    assistant-answer-turn demonstrating the exact answer grammar -- before
+    the real query image+question. This is a SEPARATE function (not a
+    run_inference parameter) because the message structure genuinely differs
+    (N+1 images across multiple turns vs. one image in one turn), not just
+    the inputs; existing call sites (No-RAG, R1 text-RAG) are unaffected.
+
+    Returns (text, gen_seconds, n_new_tokens), same shape as run_inference.
+    """
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system",
+                         "content": [{"type": "text", "text": system_prompt}]})
+    for ex_path, ex_label in exemplars:
+        ex_image = _load_capped_image(ex_path, max_image_size)
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "image", "image": ex_image},
+                {"type": "text", "text": prompt},
+            ],
+        })
+        messages.append({
+            "role": "assistant",
+            "content": [{"type": "text", "text": ex_label}],
+        })
+    query_image = _load_capped_image(query_image_path, max_image_size)
+    messages.append({
+        "role": "user",
+        "content": [
+            {"type": "image", "image": query_image},
+            {"type": "text", "text": prompt},
+        ],
+    })
+
+    inputs = processor.apply_chat_template(
+        messages,
+        add_generation_prompt=True,
+        tokenize=True,
+        return_dict=True,
+        return_tensors="pt",
+    ).to(model.device)
+
+    input_len = inputs["input_ids"].shape[-1]
+
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    t0 = time.perf_counter()
+    with torch.inference_mode():
+        out = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    gen_seconds = time.perf_counter() - t0
+
+    new_tokens = out[0][input_len:]
+    n_new = int(new_tokens.shape[-1])
+    text = processor.decode(new_tokens, skip_special_tokens=True)
+    return text, gen_seconds, n_new
+
+
 DEFAULT_PROMPT = ("Please systematically evaluate this chest radiograph and "
                   "describe any findings.")
 DEFAULT_SYSTEM = ("You are a radiologist. Describe the chest X-ray findings "
