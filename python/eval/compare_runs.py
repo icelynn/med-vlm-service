@@ -32,6 +32,7 @@ RUNS = [
     ("RSNA",   "No-RAG (Qwen3-VL-4B)",  "rsna/summary.json"),
     ("RSNA",   "Text-RAG (R1)",         "rsna/summary_rag.json"),
     ("RSNA",   "MedGemma-4B (B)",       "rsna/summary_medgemma.json"),
+    ("RSNA",   "Image-Retrieval (R2)",  "rsna/summary_imageretrieval.json"),
 ]
 
 
