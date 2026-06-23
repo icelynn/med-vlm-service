@@ -42,7 +42,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "python" / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "python" / "rag"))
 sys.path.insert(0, str(EVAL_DIR))
 
-from feasibility_check import load_model, run_inference, resolve_dtype  # noqa: E402
+from feasibility_check import load_model, run_inference, run_inference_fewshot, resolve_dtype  # noqa: E402
 from parse_answer import parse_answer, SUBTYPES  # noqa: E402
 from config import MODELS, config as svc_config  # noqa: E402
 from providers import build_context  # noqa: E402
@@ -144,10 +144,18 @@ def main():
     processor, model, load_s = load_model(args.model, args.quant, dtype)
     print(f"[ok  ] model loaded in {load_s:.1f}s")
 
-    context = build_context(args.context)
-    system_prompt = f"{SYSTEM_PROMPT}\n\n{context}" if context else SYSTEM_PROMPT
-    if context:
-        print(f"[info] context provider={args.context} ({len(context)} chars injected)")
+    # R2 (image context) retrieves per-slice -- the nearest pool exemplars differ
+    # for every query image -- so unlike none/text it can't be built once before
+    # the loop; system_prompt stays plain and the few-shot images are spliced in
+    # per-slice via run_inference_fewshot instead.
+    if args.context == "image":
+        system_prompt = SYSTEM_PROMPT
+        print(f"[info] context provider=image (per-slice retrieval, built inside the loop)")
+    else:
+        context = build_context(args.context)
+        system_prompt = f"{SYSTEM_PROMPT}\n\n{context}" if context else SYSTEM_PROMPT
+        if context:
+            print(f"[info] context provider={args.context} ({len(context)} chars injected)")
 
     images_dir = Path(args.images)
     n_parsed = n_refused = 0
@@ -158,9 +166,15 @@ def main():
             if not img_path.is_file():
                 print(f"[warn] missing image {row['image_file']} — skipped")
                 continue
-            text, gen_s, n_tok = run_inference(
-                processor, model, str(img_path), USER_PROMPT, system_prompt,
-                args.max_new_tokens, args.max_image_size)
+            if args.context == "image":
+                exemplars = build_context("image", image_path=str(img_path))
+                text, gen_s, n_tok = run_inference_fewshot(
+                    processor, model, str(img_path), exemplars, USER_PROMPT, system_prompt,
+                    args.max_new_tokens, args.max_image_size)
+            else:
+                text, gen_s, n_tok = run_inference(
+                    processor, model, str(img_path), USER_PROMPT, system_prompt,
+                    args.max_new_tokens, args.max_image_size)
             parsed = parse_answer(text)
             n_parsed += int(parsed["parsed"])
             n_refused += int(parsed["refused"])
