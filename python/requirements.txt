@@ -14,3 +14,5 @@ Pillow
 nibabel
 kagglehub
 iterative-stratification
+open_clip_torch
+scikit-image
