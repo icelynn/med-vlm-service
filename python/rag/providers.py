@@ -46,7 +46,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 DEFAULT_QUERY = "acute intracranial hemorrhage findings on a head CT slice"
 
 _collection = None  # lazy singleton: load the embedding model once per process
-_image_index = None  # lazy singleton: (embeddings, labels) loaded once per process
+_image_index_cache = {}  # {index_dir: (embeddings, labels)} -- keyed so a process
+                         # can serve both the C-path and B-path indexes without
+                         # one silently overwriting the other's cache
 
 
 def _get_collection():
@@ -68,14 +70,14 @@ def retrieve_text(query=DEFAULT_QUERY, k=5):
     return result["documents"][0]
 
 
-def _get_image_index():
-    global _image_index
-    if _image_index is None:
-        embeddings = np.load(IMAGE_INDEX_DIR / "embeddings.npy")
-        with open(IMAGE_INDEX_DIR / "labels.json", encoding="utf-8") as f:
+def _get_image_index(index_dir):
+    key = str(index_dir)
+    if key not in _image_index_cache:
+        embeddings = np.load(Path(index_dir) / "embeddings.npy")
+        with open(Path(index_dir) / "labels.json", encoding="utf-8") as f:
             labels = json.load(f)
-        _image_index = (embeddings, labels)
-    return _image_index
+        _image_index_cache[key] = (embeddings, labels)
+    return _image_index_cache[key]
 
 
 def _label_text(label_row):
@@ -88,20 +90,39 @@ def _label_text(label_row):
     return f"HEMORRHAGE: yes\nSUBTYPES: {', '.join(present)}"
 
 
-def retrieve_image_exemplars(image_path, k=3):
+def retrieve_image_exemplars(image_path, k=3, index_dir=IMAGE_INDEX_DIR,
+                             pool_images_dir=POOL_IMAGES_DIR, random_baseline=False):
     """Embed the CURRENT query slice with BiomedCLIP, retrieve the top-k
-    visually-nearest RSNA pool exemplars, and return them as a list of
-    (image_path, label_text) pairs in similarity order."""
-    from biomedclip_embed import embed_image
+    visually-nearest pool exemplars, and return them as a list of
+    (image_path, label_text) pairs in similarity order.
 
-    embeddings, labels = _get_image_index()
-    query_emb = embed_image(image_path)
-    sims = embeddings @ query_emb
-    top = np.argsort(-sims)[:k]
-    return [(POOL_IMAGES_DIR / labels[i]["image_file"], _label_text(labels[i])) for i in top]
+    index_dir/pool_images_dir default to the R2-C index (RSNA pool -> RSNA
+    eval). Pass the R2-B (harmonized RSNA pool -> CT-ICH eval) paths to reuse
+    this exact same retrieval code for the other path -- see 核心難題⑫ §0i /
+    Week4 plan §8.
+
+    random_baseline=True skips similarity search entirely and draws k random
+    pool exemplars instead (deterministic per query image, via a seed derived
+    from image_path, so reruns/resumes are reproducible). This isolates
+    "does the model benefit from any few-shot exemplar at all" (format
+    demonstration) from "does it benefit from a VISUALLY RELEVANT one" --
+    see 核心難題⑫ §0j."""
+    embeddings, labels = _get_image_index(index_dir)
+    if random_baseline:
+        import random as _random
+        rng = _random.Random(str(image_path))
+        top = rng.sample(range(len(labels)), min(k, len(labels)))
+    else:
+        from biomedclip_embed import embed_image
+        query_emb = embed_image(image_path)
+        sims = embeddings @ query_emb
+        top = np.argsort(-sims)[:k]
+    return [(Path(pool_images_dir) / labels[i]["image_file"], _label_text(labels[i])) for i in top]
 
 
-def build_context(provider, query=DEFAULT_QUERY, image_path=None):
+def build_context(provider, query=DEFAULT_QUERY, image_path=None,
+                  image_index_dir=IMAGE_INDEX_DIR, image_pool_dir=POOL_IMAGES_DIR,
+                  image_random_baseline=False):
     if provider == "none":
         return ""
     if provider == "text":
@@ -115,5 +136,7 @@ def build_context(provider, query=DEFAULT_QUERY, image_path=None):
     if provider == "image":
         if image_path is None:
             raise ValueError("provider='image' needs image_path (retrieval is per-slice)")
-        return retrieve_image_exemplars(image_path)
+        return retrieve_image_exemplars(image_path, index_dir=image_index_dir,
+                                        pool_images_dir=image_pool_dir,
+                                        random_baseline=image_random_baseline)
     raise ValueError(f"unknown context provider: {provider!r}")

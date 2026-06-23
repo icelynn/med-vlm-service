@@ -114,6 +114,17 @@ def main():
     ap.add_argument("--context", default="none", choices=["none", "text", "image"],
                     help="retrieval-injection provider (R1=text, R2=image, planned); "
                          "default 'none' keeps the No-RAG baseline unchanged")
+    ap.add_argument("--image-index-dir", default=None,
+                    help="--context image only: override the BiomedCLIP index dir "
+                         "(default = R2-C's RSNA-pool index; pass the R2-B "
+                         "harmonized index to retrieve against CT-ICH instead)")
+    ap.add_argument("--image-pool-dir", default=None,
+                    help="--context image only: override the pool images dir "
+                         "(pairs with --image-index-dir)")
+    ap.add_argument("--image-random", action="store_true",
+                    help="--context image only: draw k random pool exemplars instead "
+                         "of retrieving by similarity -- a control to isolate retrieval "
+                         "quality from \"having any few-shot exemplar\" (核心難題⑫ §0j)")
     ap.add_argument("--max-new-tokens", type=int, default=64,
                     help="constrained answer is short; 64 is plenty")
     ap.add_argument("--max-image-size", type=int, default=896)
@@ -148,9 +159,18 @@ def main():
     # for every query image -- so unlike none/text it can't be built once before
     # the loop; system_prompt stays plain and the few-shot images are spliced in
     # per-slice via run_inference_fewshot instead.
+    image_context_kwargs = {}
+    if args.image_index_dir:
+        image_context_kwargs["image_index_dir"] = args.image_index_dir
+    if args.image_pool_dir:
+        image_context_kwargs["image_pool_dir"] = args.image_pool_dir
+    if args.image_random:
+        image_context_kwargs["image_random_baseline"] = True
     if args.context == "image":
         system_prompt = SYSTEM_PROMPT
-        print(f"[info] context provider=image (per-slice retrieval, built inside the loop)")
+        print(f"[info] context provider=image (per-slice retrieval, built inside the loop)"
+              + (f"  index_dir={args.image_index_dir}" if args.image_index_dir else "")
+              + ("  RANDOM-BASELINE" if args.image_random else ""))
     else:
         context = build_context(args.context)
         system_prompt = f"{SYSTEM_PROMPT}\n\n{context}" if context else SYSTEM_PROMPT
@@ -167,7 +187,7 @@ def main():
                 print(f"[warn] missing image {row['image_file']} — skipped")
                 continue
             if args.context == "image":
-                exemplars = build_context("image", image_path=str(img_path))
+                exemplars = build_context("image", image_path=str(img_path), **image_context_kwargs)
                 text, gen_s, n_tok = run_inference_fewshot(
                     processor, model, str(img_path), exemplars, USER_PROMPT, system_prompt,
                     args.max_new_tokens, args.max_image_size)
