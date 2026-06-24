@@ -27,12 +27,21 @@ CLAUDE.md
 data/ct_ich/_raw/
 data/ct_ich/images/
 
-# RSNA external-validation data: same policy (raw download incl. the ~120MB
-# stage_2_train.csv + spot-check samples, and rendered images) — manifests only
+# RSNA external-validation data: raw download (~120MB stage_2_train.csv +
+# spot-check samples) and rendered images, same as CT-ICH above.
 data/rsna/_raw/
 data/rsna/images/
 data/rsna/pool_images*/
 data/rsna/images_histmatch*/
+
+# RSNA's competition rules prohibit redistributing "any of the data" (see
+# Rules §7.A/§7.B) -- unlike CT-ICH (CC-BY), this covers derived labels too,
+# not just pixels. manifest/pool_manifest CSVs must be regenerated locally
+# via prep_rsna.py/build_rsna_pool.py under each user's own Kaggle agreement,
+# never committed. (Purged from git history 2026-06-25; see commit log.)
+data/rsna/manifest*.csv
+data/rsna/pool_manifest.csv
+data/rsna/Rules.txt
 
 # RAG vector index (rebuildable from python/rag/build_kb.py)
 data/rag/
