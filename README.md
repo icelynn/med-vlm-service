@@ -1,153 +1,113 @@
 <div align="center">
 
 # Medical vLM Microservice
+### Can retrieval-augmented generation fix what a general VLM can't see on a head CT?
 
 [![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
-[![Python Version](https://img.shields.io/badge/python-3.10%2B-green.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-v0.100%2B-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Docker Sandbox](https://img.shields.io/badge/Sandbox-Docker-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-green.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-async-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Docker](https://img.shields.io/badge/Sandbox-Docker-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
 
-**Production-Ready Asynchronous Multimodal Medical AI Serving Engine with Strategy Dispatch**
+![CT-ICH No-RAG F1](https://img.shields.io/badge/CT--ICH_No--RAG_F1-0.000-c0392b)
+![RSNA No-RAG F1](https://img.shields.io/badge/RSNA_No--RAG_F1-0.158-e67e22)
+![Image-Retrieval F1](https://img.shields.io/badge/Image--Retrieval_F1-0.575_to_0.667-2ecc71)
+![Significance](https://img.shields.io/badge/vs_No--RAG-p%3C0.0001-2ecc71)
 
-[Architecture Overview](#architecture-overview) | [Quick Start](#quick-start)
+[Results](#evaluation-results) · [Demo](#demo) · [Architecture](#architecture) · [Quick Start](#quick-start) · [Ethics](#ethics--data-compliance)
 
 </div>
 
-## About The Project
+> [!IMPORTANT]
+> **Research prototype, not a clinical tool.** Every number below comes from a controlled offline evaluation, not a deployed diagnostic product — see [Ethics & Data Compliance](#ethics--data-compliance).
 
-**Medical vLM Microservice** is a high-performance, asynchronous RESTful API tailored for automated and systematic medical image analysis (e.g., Chest X-Rays). Built upon a decoupled microservice paradigm, the engine features a pipeline to enforce absolute input modal integrity and clinical-grade image quality bottom-lines before orchestrating vision-language models (vLMs).
+## TL;DR
 
-### Environment & Processing Matrix (Sample)
+A 4B general-purpose vision-language model (Qwen3-VL) detects **zero** intracranial hemorrhages out of the box on head CT. We test two fixes — text knowledge, then visual examples — and measure which one actually works.
 
-<div align="center">
-<table style="width:100%">
-  <thead>
-    <tr>
-      <th style="width:20%">Environment (`ENV`)</th>
-      <th style="width:25%">Backend Inference Engine</th>
-      <th style="width:30%">Target Multi-Modal Models</th>
-      <th style="width:25%">Compute Context</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>test</code></td>
-      <td>OpenRouter (Cloud API)</td>
-      <td>Main vLM (vision slug for local testing)</td>
-      <td>Local dev machine</td>
-    </tr>
-    <tr>
-      <td><code>dev</code></td>
-      <td>HF + Transformers (eval pipeline)</td>
-      <td><code>Qwen3-VL-4B</code> (main) / <code>MedGemma-4B</code> (medical baseline)</td>
-      <td>AWS GPU Instance (CUDA Accelerated)</td>
-    </tr>
-    <tr>
-      <td><code>demo</code></td>
-      <td>HF + Transformers (same engine as <code>dev</code>)</td>
-      <td><code>Qwen3-VL-4B</code> (main) / <code>MedGemma-4B</code> (medical baseline)</td>
-      <td>AWS GPU Instance (CUDA Accelerated)</td>
-    </tr>
-  </tbody>
-</table>
-</div>
+- 🔴 **Baseline floors on two independent datasets** — F1 = 0.000 (CT-ICH), F1 = 0.158 (RSNA). Not a fluke.
+- 🟠 **Text-RAG (inject subtype descriptions) does nothing** — F1 unchanged. The model lacks *perception*, not *knowledge*.
+- 🟢 **Image-retrieval RAG (few-shot visual exemplars) works, decisively** — F1 jumps to 0.575–0.667 (p<0.0001 vs. baseline on both datasets), and the gain survives a random-exemplar control.
 
-## Architecture Overview
+> [!NOTE]
+> **One-line takeaway**: the bottleneck was perceptual, not informational — verified three independent ways (a second dataset, a smarter retrieval query, a random-exemplar control) before trusting it. We also caught and corrected three of our own over-claims along the way — see *Honest limitations* below.
 
-The system architecture is engineered to adhere to enterprise-grade asynchronous design, completely neutralizing blocking I/O overhead during massive graphic payloads:
+<p align="center"><img src="docs/media/f1_comparison.svg" alt="Any-hemorrhage F1 by method and dataset, with 95% CI" width="100%"></p>
 
-1. **Ingress & Parsing Layer (`FastAPI` + `python-multipart`)**: Consumes medical binaries seamlessly via non-blocking multi-part form parameters.
-2. **Dynamic Strategy Dispatch (`config.py` + `inference.py`)**: Conditionally routes Base64-encoded spatial tensor streams based on unified state configurations.
-3. **Clinical Role Binding (Expert System Prompt)**: Constrains LLM autoregressive tokens under a strict 4-tier structured radiology sequence:
-   - `Image Quality Assessment` -> `Objective Findings` -> `Impression (Differential Diagnosis)` -> `Recommendations & Disclaimer`.
+---
 
-## Open-Source Software Stack
+## Demo
 
-This project stands on the shoulders of giants within the open-source GenAI ecosystem:
-- **[FastAPI](https://github.com/tiangolo/fastapi)** - High-performance, low-latency ASGI web framework for Python.
-- **[HTTPX](https://github.com/encode/httpx)** - Next-generation, fully asynchronous HTTP client utilized for internal multi-modal relay communications.
-- **[Docker](https://github.com/docker)** - OS-level virtualization to guarantee reproducible sandbox runs.
-- **[OpenRouter Labs](https://openrouter.ai/)** - Unified cloud API orchestration layer used by the `test` environment.
-- **[Hugging Face Transformers](https://github.com/huggingface/transformers)** - Local GPU inference engine shared by the `dev` (evaluation) and `demo` (served) environments.
-
-## Quick Start
-
-### 1. Environment Configuration
-Create a `.env` file in the project root folder to register your runtime credentials:
-
-```ini
-ENV=test                 # test | dev | demo
-MODEL_ROLE=main          # main | medical_baseline
-
-# test — OpenRouter (cloud API, local dev machine)
-OPENROUTER_API_URL=https://openrouter.ai/api/v1/chat/completions
-OPENROUTER_API_KEY=[your_sk_or_v1_openrouter_api_key_here]
-# OPENROUTER_MAIN_MODEL defaults in config.py
-
-# demo (served) and dev (eval pipeline) — both run HF + Transformers on the
-# AWS GPU instance; HF model ids default in config.py (HF_MAIN_MODEL /
-# HF_MEDICAL_MODEL override Qwen3-VL-4B / MedGemma-4B if set)
-```
-
-> Backends are split by purpose: `dev` (HF + Transformers) is the **evaluation** track (`python/eval/run_baseline.py`) and produces all reported metrics; `test`/`demo` are the **served** proxy. Model identities live in one place — `python/src/config.py` (`MODELS` registry).
-
-### 2. Sandbox Deployment (Docker Isolation)
-Build and spin up the complete isolated microservice environment natively without affecting host storage parameters:
+Upload a head-CT slice → get a token-streamed (SSE) 4-section radiology report back, served from a containerized async FastAPI backend.
 
 ```bash
-# Clone the repository
-git clone [https://github.com/your-username/med-vlm-service.git](https://github.com/your-username/med-vlm-service.git)
-cd med-vlm-service
-
-# Build the container image securely skipping local cash layers
-docker build --no-cache -t med-vlm-sandbox .
-
-# Execute the runtime sandboxed container routing bound ports
-docker run -d -p 8000:8000 --env-file .env --name medical_service_agent med-vlm-sandbox
+curl -X POST http://127.0.0.1:8000/analyze/stream \
+  -F "prompt=Please systematically evaluate this head CT slice for acute intracranial hemorrhage." \
+  -F "image=@./data/ct_ich/images/<slice>.png"
 ```
+> No head-CT image ships in this repo (CT-ICH requires a free PhysioNet DUA — see [Quick Start](#quick-start) §0).
 
-### 3. Clinical Inference Verification (curl)
-Test the endpoint via terminal to evaluate the system prompt constraints and runtime capabilities:
+Two opt-in, mutually-exclusive flags (`-F "image_retrieval=true"` / `-F "two_stage=true"`, both default off): the **image-retrieval** flag reproduces the winning method above inside the live service; the **two-stage** flag reproduces the text-RAG null result. Details: [Quick Start](#quick-start).
 
-```bash
-curl -X POST [http://127.0.0.1:8000/analyze](http://127.0.0.1:8000/analyze) \
-  -F "prompt=Please systematically evaluate this chest radiography for clinical anomalies." \
-  -F "image=@./data/test_images/normal_xray.jpg"
-```
+<details>
+<summary>📹 <b>Media checklist</b> — what's captured vs. still needed (click to expand)</summary>
 
-`/analyze` and `/analyze/stream` (HF backend only) also accept two opt-in, mutually-exclusive form fields (both default off via `TWO_STAGE_RAG`/`IMAGE_RETRIEVAL_RAG` env vars; passing both `true` raises an error):
+| Asset | Status | What it shows |
+|---|---|---|
+| F1 comparison chart | ✅ above | Headline result, all rows, with 95% CI |
+| SSE streaming demo | ⬜ todo | `/analyze/stream` returning a report token-by-token, ending on `[DONE]` |
+| Image-retrieval mode | ⬜ todo | `/analyze` with `image_retrieval=true`, showing the constrained judgment + the gate refusing a non-head-CT input |
+| Container boot | ⬜ todo | `docker build` → `docker run` → first request |
 
-- `two_stage=true` — findings-conditioned two-stage text-RAG (see Evaluation Results: this is a *null* result, kept for architecture-completeness demonstration, not for a quality improvement).
-- `image_retrieval=true` — R2 image-retrieval few-shot, reproducing the eval-measured R2-B config (constrained `HEMORRHAGE`/`SUBTYPES` judgment, not a free-text report). **Caveat**: this mode uses the eval's constrained prompts, not `system_prompt.txt`'s modality-gating system prompt — a non-brain image will get a constrained yes/no judgment instead of the report endpoint's validated refusal. This is the accepted tradeoff of reproducing the measured 0.575/0.667 F1 configuration exactly, not a regression.
+</details>
+
+<details>
+<summary><b>Architecture</b> (click to expand)</summary>
+
+1. **Ingress (`FastAPI`)** — `/analyze` (single response) or `/analyze/stream` (SSE) accept a multipart image + prompt.
+2. **Backend dispatch (`config.py` + `inference.py`)** — `test` → OpenRouter (cloud API, local-dev only, never feeds the results below); `demo` → HF Transformers, in-process on the GPU, same load/generate code path as the offline eval pipeline. *(Used to proxy to a local Ollama server; Ollama was retired 2026-06-21 after an upstream CUDA bug, and `demo` now calls the model directly.)*
+3. **Constrained report structure** — 4-section radiology output (`Quality → Findings → Impression → Recommendations`) plus a modality gate that declines, in plain language, on non-head-CT input.
+4. **Two opt-in retrieval modes** — `two_stage` (text-RAG, a *null* result; inherits the report endpoint's modality gate, since it reuses the same system prompt) and `image_retrieval` (the method that actually moves F1; uses its own constrained prompt with no built-in gate, so a separate lightweight modality pre-check runs before it — see Honest limitations for that gate's measured accuracy).
+5. **Offline evaluation track (`python/eval/`)** — separate from the service. Batch inference → rule-based parser → scored against ground truth. **The only source of every number in this README.**
+
+**Why two tracks?** The service prompt is tuned for a readable report and a safe refusal; the eval prompt is tuned for parseable, reproducible labels. Mixing them would make every F1 depend on a prompt that's also being tuned for UX.
+
+</details>
+
+---
 
 ## Evaluation Results
 
-The `dev` track (`python/eval/`) runs a controlled, reproducible evaluation protocol across two independent head-CT hemorrhage datasets: [CT-ICH](https://physionet.org/content/ct-ich/1.3.1/) (75-patient cohort, PhysioNet) and [RSNA Intracranial Hemorrhage Detection](https://www.kaggle.com/c/rsna-intracranial-hemorrhage-detection) (multi-institutional Kaggle challenge). 150 slices per dataset, drawn via multi-label stratified sampling so each sample's subtype prevalence and co-occurrence rate track the true population (not an artificially balanced subset). Every row uses the same manifest within its dataset, the same constrained prompt, and the same scoring code — only one factor changes per row (the model, or whether a retrieval context is injected).
+Controlled, reproducible protocol across two independent head-CT hemorrhage datasets — [CT-ICH](https://physionet.org/content/ct-ich/1.3.1/) (75-patient cohort) and [RSNA ICH](https://www.kaggle.com/c/rsna-intracranial-hemorrhage-detection) (multi-institutional). 150 slices/dataset, multi-label stratified sampling (true subtype prevalence and co-occurrence preserved, not artificially balanced). Within each dataset, every row shares the same manifest, prompt, and scoring code — only the model or retrieval context changes.
 
-| Dataset | Method | n | Any-hem F1 | 95% CI | Precision | Recall | Hemorrhage slices missed entirely |
+**The claim that survives every control we ran, including against ourselves**: same model, same dataset, same eval images — only the context provider changes. Image-retrieval beats No-RAG and Text-RAG decisively on both datasets (p<0.0001, all four comparisons), **and** genuine visual retrieval beats a random-exemplar control once the query/pool visual domain is matched (+0.148 to +0.170 F1, p≤0.001). This holds purely *within* each dataset — it doesn't depend on ranking CT-ICH against RSNA, or on comparing against MedGemma, both of which turned out to be unfair comparisons on closer inspection (see *Honest limitations*).
+
+<details>
+<summary><b>Full numbers</b> — precision/recall, CI, missed-hemorrhage counts (click to expand)</summary>
+
+| Dataset | Method | n | F1 | 95% CI | Precision | Recall | Missed entirely |
 |---|---|---|---|---|---|---|---|
 | CT-ICH | No-RAG (Qwen3-VL-4B) | 150 | 0.000 | [0.000, 0.000] | 0.000 | 0.000 | 100.0% (105/105) |
 | CT-ICH | Text-RAG | 150 | 0.000 | [0.000, 0.000] | 0.000 | 0.000 | 100.0% (105/105) |
-| CT-ICH | Text-RAG (two-stage, findings-conditioned) | 150 | 0.000 | [0.000, 0.000] | 0.000 | 0.000 | 100.0% (105/105) |
+| CT-ICH | Text-RAG (two-stage) | 150 | 0.000 | [0.000, 0.000] | 0.000 | 0.000 | 100.0% (105/105) |
 | CT-ICH | MedGemma-4B | 150 | 0.242 | [0.143, 0.345] | 0.789 | 0.143 | 85.7% (90/105) |
-| CT-ICH | Image-Retrieval (R2-B) | 150 | 0.575 | [0.479, 0.663] | 0.836 | 0.438 | 56.2% (59/105) |
-| CT-ICH | Image-Retrieval (R2-B, random-exemplar control) | 150 | 0.427 | [0.326, 0.521] | 0.711 | 0.305 | 69.5% (73/105) |
+| CT-ICH | Image-Retrieval (R2-B) | 150 | **0.575** | [0.479, 0.663] | 0.836 | 0.438 | 56.2% (59/105) |
+| CT-ICH | Image-Retrieval (random-exemplar control) | 150 | 0.427 | [0.326, 0.521] | 0.711 | 0.305 | 69.5% (73/105) |
 | RSNA | No-RAG (Qwen3-VL-4B) | 150 | 0.158 | [0.073, 0.252] | 1.000 | 0.086 | 91.4% (96/105) |
 | RSNA | Text-RAG | 150 | 0.202 | [0.107, 0.298] | 0.857 | 0.114 | 88.6% (93/105) |
-| RSNA | Text-RAG (two-stage, findings-conditioned) | 150 | 0.202 | [0.108, 0.300] | 0.857 | 0.114 | 88.6% (93/105) |
+| RSNA | Text-RAG (two-stage) | 150 | 0.202 | [0.108, 0.300] | 0.857 | 0.114 | 88.6% (93/105) |
 | RSNA | MedGemma-4B | 150 | 0.568 | [0.464, 0.658] | 0.977 | 0.400 | 60.0% (63/105) |
-| RSNA | Image-Retrieval (R2-C) | 150 | 0.667 | [0.575, 0.745] | 0.917 | 0.524 | 47.6% (50/105) |
-| RSNA | Image-Retrieval (R2-C, random-exemplar control) | 150 | 0.497 | [0.388, 0.591] | 0.841 | 0.352 | 64.8% (68/105) |
+| RSNA | Image-Retrieval (R2-C) † | 150 | **0.667** | [0.575, 0.745] | 0.917 | 0.524 | 47.6% (50/105) |
+| RSNA | Image-Retrieval (random-exemplar control) | 150 | 0.497 | [0.388, 0.591] | 0.841 | 0.352 | 64.8% (68/105) |
 
-*CI = 95% bootstrap percentile interval (2000 resamples). A CI that does not cross 0 means the F1 is statistically distinguishable from a no-effect floor; a CI that hugs 0 means it isn't, regardless of the point estimate. The R2-C row reflects a resolution-matched retrieval pool — see below for why, and for the original (resolution-mismatched) measurement.*
+*CI = 95% bootstrap percentile interval (2000 resamples). † **R2-C is the best point of a 4-point resolution sweep, not a single pre-registered setting** — see Honest limitations for the full sweep and why we still report it as primary.*
 
-Image-Retrieval gives the same general model (Qwen3-VL-4B, no domain pretraining) a handful of visually-similar reference slices with known labels instead of text — a few-shot analogue, retrieved from a study-disjoint pool of RSNA images (verified zero overlap with any eval set by construction, see `python/rag/build_rsna_pool.py`). Two variants: **R2-C** (RSNA pool → RSNA eval) and **R2-B** (RSNA pool → CT-ICH eval, pool histogram-matched to CT-ICH's intensity distribution first, `python/rag/harmonize_pool.py`).
+Image-Retrieval gives the same general model 3 visually-similar reference slices with known labels instead of text, retrieved from a study-disjoint RSNA pool (verified zero patient/study overlap by construction, `python/rag/build_rsna_pool.py`). **R2-C** = RSNA pool → RSNA eval. **R2-B** = RSNA pool → CT-ICH eval (pool histogram-matched to CT-ICH first, `python/rag/harmonize_pool.py`).
 
-We ran two additional control experiments per variant before trusting these numbers — see *Honest limitations* for what they found and why the headline claim below is narrower than our first pass at this writeup claimed:
+</details>
 
-**The claim that survives both controls**: same model, same dataset, same eval images — only the context provider changes. R2 beats No-RAG and Text-RAG decisively on both datasets (all four paired-bootstrap comparisons p<0.0001), **and** genuine visual retrieval beats a same-pool random-exemplar control once the query/pool domain is matched (R2-B: +0.148 F1, p=0.001; R2-C resolution-matched: +0.170 F1, p<0.0001). Retrieval quality is not just "having an exemplar to copy the format from" — it measurably matters, but only once the underlying visual space is consistent between pool and query.
+<details>
+<summary><b>Reproduce any row</b> (click to expand)</summary>
 
-Reproduce any row:
 ```bash
 HF_HOME=/mnt/hf MODEL_ROLE=main      python python/eval/run_baseline.py --out results.jsonl              # No-RAG
 HF_HOME=/mnt/hf MODEL_ROLE=main      python python/eval/run_baseline.py --context text --out results.jsonl  # Text-RAG
@@ -170,7 +130,10 @@ python python/eval/significance_report.py --manifest data/rsna/manifest.csv \
 python python/eval/significance_report.py --self-test   # offline sanity check, no GPU needed
 ```
 
-### Honest limitations
+</details>
+
+<details>
+<summary><b>Honest limitations</b> — including three places we over-claimed and corrected ourselves (click to expand, recommended)</summary>
 
 - **General-purpose VLMs floor out at this task, on both datasets.** A general vision-language model with no domain pretraining (Qwen3-VL-4B) detects essentially zero hemorrhages on CT-ICH (F1=0.000) and barely more on RSNA (F1=0.158, recall=0.086) — not a tuning failure, but a perceptual ceiling: it cannot reliably see what it was never trained to recognize.
 - **Domain pretraining helps, unevenly — and the size of the help is dataset-dependent.** MedGemma-4B scores F1=0.242 on CT-ICH but F1=0.568 on RSNA, with non-overlapping confidence intervals — the *same model, same prompt* performs very differently depending on which dataset it's looking at. We do not have a confirmed explanation for this gap; three candidate factors are plausible and not mutually exclusive: (1) RSNA's higher co-occurrence rate gives the binary "any hemorrhage" metric more chances to be right via any one of several simultaneous findings; (2) the two datasets' source images differ in lesion severity and/or windowing/post-processing pipeline — a controlled test (same 150 RSNA images, only swapping a 128px source for a 512px one) found the *higher-resolution* source scored *worse* (F1=0.331 vs 0.568), with a directly visible loss of hyperdensity contrast on the same case across the two sources, pointing at windowing rather than resolution as the operative variable; (3) RSNA is one of the most widely discussed public medical-imaging benchmarks since 2019 and we cannot rule out the model's pretraining corpus having had some exposure to it, versus the far more obscure, access-gated CT-ICH. We report all three candidates rather than picking one — the uncertainty itself is the honest finding.
@@ -182,4 +145,75 @@ python python/eval/significance_report.py --self-test   # offline sanity check, 
 - **Retrieval quality only shows a measurable edge over random exemplars once the domain is matched.** We compared real (similarity-retrieved) exemplars against a same-pool *random*-exemplar control (k=3 random images, not nearest-neighbor) to separate "the model benefits from seeing any few-shot example" (format demonstration) from "the model benefits from a *visually relevant* one." Under R2-C's original resolution mismatch, retrieved exemplars were *not* significantly better than random (+0.060 F1, p=0.163). Once resolution was matched, retrieval pulled significantly ahead of random (+0.170 F1, p<0.0001), and R2-B (already domain-matched via histogram matching) showed the same pattern (+0.148 F1, p=0.001). Even the random-exemplar control beats No-RAG/Text-RAG decisively on both datasets (p<0.0001) — so *some* exemplar, any exemplar, helps a lot; genuine retrieval adds a further, real increment on top, conditional on the visual domain being consistent (see the bullet above for why "domain matching" is more subtle than it sounds).
 - **More domain-matching is not always better.** We also tried stacking intensity (histogram) harmonization on top of R2-C's resolution match, targeting RSNA eval's own aggregate intensity distribution (`python/rag/harmonize_pool.py --reference-images data/rsna/images`). That dropped F1 from 0.667 to 0.599 (diff -0.068, p=0.05 — right at the conventional significance boundary) instead of improving it further, though retrieval still beat its own random-exemplar control in this setting (+0.116 F1, p=0.002). Histogram matching trades off local contrast to chase a global distribution match, and a literature search earlier in this work already flagged it as the weakest of the harmonization techniques we reviewed (see `python/rag/retrieval_sentinel.py`'s docstring) — this result is consistent with that limitation rather than a fluke. We report the resolution-only-matched number (0.667) as R2-C's primary result, not the further-harmonized one.
 - **Small n on both datasets.** 150 slices per dataset; the bootstrap CIs above are the honest expression of how much that limits precision of the point estimates, especially for rarer subtypes.
-- **Rule-based answer parsing, not a learned clinical labeler.** Free-text model output is parsed with a constrained-format-first, keyword-fallback parser (`python/eval/parse_answer.py`); parse-failure and refusal rates are reported as first-class metrics precisely so a low score can't be hand-waved away as "the parser didn't understand it" (both rates are 0% across all rows above).
+- **Rule-based answer parsing, not a learned clinical labeler.** Free-text model output is parsed with a constrained-format-first, keyword-fallback parser (`python/eval/parse_answer.py`); parse-failure and refusal rates are reported as first-class metrics precisely so a low score can't be hand-waved away as "the parser didn't understand it" (both rates are 0% across all rows above). The parser's keyword/regex rules have been spot-checked against raw model text but not yet scored against an independent human-labeled sample — see the open items tracked in `.docs/Week5/`.
+- **The image-retrieval demo path's modality gate is decoupled from the measured eval configuration, and has a measured, non-zero false-refusal rate.** `image_retrieval=true` runs a separate, minimal yes/no generate before the constrained few-shot judgment that was actually measured (0.575/0.667 F1) — so the substantive judgment itself stays identical to what was scored, while a non-head-CT image gets declined. Validated on the full 150-image CT-ICH manifest plus the 22-image defensive set (`python/scripts/validate_r2_gate.py`, 2026-06-24): the defensive set is 0/22 false passes (every non-head-CT image correctly declined) across all three prompt iterations below, but CT-ICH false refusals only fell from 13/150 (8.7%) → 7/150 (4.7%) → 4/150 (2.7%) as the gate prompt was tightened — it did not reach zero. The 4 remaining false refusals (`055_017.png`, `078_002.png`, `085_006.png`, `087_001.png`) are all the very first or last slice in their patient's scan range — boundary slices near the skull vertex or base showing little brain tissue, a real, identified edge case, not random noise. We stopped iterating at 3 prompt rounds rather than keep tuning against this exact validation set (which would risk overfitting to these specific images rather than generalizing); the residual 2.7% false-refusal rate is reported here rather than hidden.
+
+</details>
+
+---
+
+## Ethics & Data Compliance
+
+- **Research prototype, not a clinical decision-support tool.** No output should inform or substitute for an actual diagnosis or treatment decision; every AI-generated report carries an explicit disclaimer to this effect.
+- **Dataset licenses are respected; no licensed image bytes are redistributed.** [CT-ICH](https://physionet.org/content/ct-ich/1.3.1/) is CC-BY 4.0 via PhysioNet (requires a Data Use Agreement); [RSNA ICH](https://www.kaggle.com/c/rsna-intracranial-hemorrhage-detection) is restricted to non-commercial research use. This repo commits only derived manifests (image IDs + the 6-D labels used for scoring) — raw pixels are `.gitignore`d and must be fetched locally under each dataset's own agreement.
+- **2D, single-slice, single-modality.** Evaluation is per-slice, not on the full 3D volume a radiologist would review, and not validated against any other modality — a known simplification (see *Honest limitations*).
+- **Two datasets reduce, but don't eliminate, external-validity risk.** Cross-dataset evaluation surfaced a real, only partially-understood gap between CT-ICH and RSNA (see *Honest limitations*) — a reminder that even two datasets isn't full generalization proof.
+- **Answer parsing is rule-based**, with its own failure/refusal rate reported as a first-class metric rather than assumed reliable.
+
+---
+
+<details>
+<summary><b>Quick Start</b> (click to expand)</summary>
+
+### 0. Dataset access (required before any evaluation run)
+- **CT-ICH**: sign PhysioNet's DUA, download v1.3.1 from [physionet.org/content/ct-ich/1.3.1](https://physionet.org/content/ct-ich/1.3.1/), then `python python/eval/prep_ct_ich.py`.
+- **RSNA**: accept the competition rules on [Kaggle](https://www.kaggle.com/c/rsna-intracranial-hemorrhage-detection), then `python python/eval/prep_rsna.py`.
+
+### 1. Environment Configuration
+
+```ini
+ENV=test                 # test | dev | demo
+MODEL_ROLE=main          # main | medical_baseline
+
+OPENROUTER_API_URL=https://openrouter.ai/api/v1/chat/completions
+OPENROUTER_API_KEY=[your_key]
+# demo/dev both run HF + Transformers in-process; HF_MAIN_MODEL/HF_MEDICAL_MODEL override defaults
+```
+
+> Backends split by *purpose*, not engine: `dev` (`run_baseline.py`) produces every reported metric; `demo`/`test` are the served API and never feed the comparison table.
+
+### 2. Sandbox Deployment (Docker)
+
+```bash
+git clone https://github.com/your-username/med-vlm-service.git
+cd med-vlm-service
+docker build --no-cache -t med-vlm-sandbox .
+docker run -d -p 8000:8000 --env-file .env --name medical_service_agent med-vlm-sandbox
+```
+
+### 3. Inference Verification
+
+```bash
+curl -X POST http://127.0.0.1:8000/analyze \
+  -F "prompt=Please systematically evaluate this head CT slice for acute intracranial hemorrhage." \
+  -F "image=@./data/ct_ich/images/<slice>.png"
+```
+
+Opt-in flags (`TWO_STAGE_RAG`/`IMAGE_RETRIEVAL_RAG` env vars, both default off, mutually exclusive):
+- `two_stage=true` — findings-conditioned text-RAG (a *null* result — see Evaluation Results — kept for architecture-completeness, not quality).
+- `image_retrieval=true` — reproduces the winning R2-B config; declines non-head-CT input via its own modality gate (see Honest limitations) before running the constrained judgment.
+
+</details>
+
+<details>
+<summary><b>Open-Source Stack</b> (click to expand)</summary>
+
+- **[FastAPI](https://github.com/tiangolo/fastapi)** — async ASGI framework.
+- **[HTTPX](https://github.com/encode/httpx)** — async client for the `test` environment's OpenRouter calls.
+- **[Docker](https://github.com/docker)** — reproducible sandbox runs.
+- **[OpenRouter](https://openrouter.ai/)** — cloud API for `test` only.
+- **[Hugging Face Transformers](https://github.com/huggingface/transformers)** — in-process GPU inference, shared by `dev` and `demo`.
+- **[BiomedCLIP](https://huggingface.co/microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224)** — image-text encoder for R2's retrieval.
+- **[ChromaDB](https://www.trychroma.com/)** — vector store for the text-RAG knowledge base.
+
+</details>
