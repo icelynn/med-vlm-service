@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import sys
+import tempfile
 import threading
 from io import BytesIO
 from pathlib import Path
@@ -18,6 +19,25 @@ logger = logging.getLogger("medical-vlm-service")
 _HF_MAX_IMAGE_SIZE = 896  # vision-token-blowup cap, same lesson as feasibility_check.py
 _THINK_TAG_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 _TWO_STAGE_TEXT_K = 2  # matches run_baseline.py's TEXT_TWOSTAGE_K (< 5 = whole KB)
+
+# R2 (image-retrieval few-shot) constrained prompts -- mirrored verbatim from
+# run_baseline.py's SYSTEM_PROMPT/USER_PROMPT (source of truth). R2's measured
+# F1=0.667/0.575 used exactly this constrained format, not free-text reports,
+# so the demo path reproduces it rather than reusing the user's own prompt.
+_R2_SYSTEM_PROMPT = (
+    "You are a neuroradiologist reading a single axial head CT slice shown in a "
+    "brain window. Judge only what is visible on this one slice."
+)
+_R2_USER_PROMPT = (
+    "Assess this head CT slice for acute intracranial hemorrhage. "
+    "Answer in EXACTLY this format and nothing else:\n"
+    "HEMORRHAGE: <yes or no>\n"
+    "SUBTYPES: <comma-separated list of those present, from IPH, IVH, SAH, EDH, "
+    "SDH; or 'none'>\n\n"
+    "Where IPH=intraparenchymal, IVH=intraventricular, SAH=subarachnoid, "
+    "EDH=epidural, SDH=subdural."
+)
+_R2_MAX_NEW_TOKENS = 64  # matches run_baseline.py: the constrained answer is short
 
 _hf_cache = {}  # model_id -> (processor, model); loaded lazily, kept resident
 _hf_lock = asyncio.Lock()  # one GPU, one generate() at a time
@@ -112,6 +132,99 @@ async def _call_hf_twostage(base64_image: str, prompt: str, system_prompt: str) 
     return await _call_hf(base64_image, prompt, enhanced_system_prompt)
 
 
+def _retrieve_image_exemplars(query_image_path: str):
+    """R2 retrieval: BiomedCLIP top-3 visually-similar pool exemplars for the
+    query image (see python/rag/providers.py). Pure CPU (BiomedCLIP + numpy),
+    called before the GPU lock is acquired so it never blocks generation."""
+    rag_dir = Path(__file__).resolve().parent.parent / "rag"
+    if str(rag_dir) not in sys.path:
+        sys.path.insert(0, str(rag_dir))
+    from providers import build_context
+
+    return build_context("image", image_path=query_image_path,
+                         image_index_dir=config.R2_INDEX_DIR,
+                         image_pool_dir=config.R2_POOL_DIR)
+
+
+def _build_fewshot_inputs(processor, model, query_image: Image.Image, exemplars):
+    """Mirrors feasibility_check.run_inference_fewshot's message structure:
+    each exemplar becomes a user-image-turn + assistant-answer-turn
+    demonstrating the answer grammar, then the real query as a final user
+    turn. Always uses the R2 constrained prompts (not the caller's prompt) --
+    see _R2_SYSTEM_PROMPT/_R2_USER_PROMPT docstring for why."""
+    from feasibility_check import _load_capped_image
+
+    messages = [
+        {"role": "system", "content": [{"type": "text", "text": _R2_SYSTEM_PROMPT}]},
+    ]
+    for ex_path, ex_label in exemplars:
+        ex_image = _load_capped_image(ex_path, _HF_MAX_IMAGE_SIZE)
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "image", "image": ex_image},
+                {"type": "text", "text": _R2_USER_PROMPT},
+            ],
+        })
+        messages.append({
+            "role": "assistant",
+            "content": [{"type": "text", "text": ex_label}],
+        })
+    messages.append({
+        "role": "user",
+        "content": [
+            {"type": "image", "image": query_image},
+            {"type": "text", "text": _R2_USER_PROMPT},
+        ],
+    })
+    return processor.apply_chat_template(
+        messages, add_generation_prompt=True, tokenize=True,
+        return_dict=True, return_tensors="pt",
+    ).to(model.device)
+
+
+async def _get_image_exemplars(image: Image.Image):
+    """Write the query image to a temp file (retrieval needs a path, not a
+    PIL object -- see biomedclip_embed.embed_image), retrieve, then clean up
+    immediately; the temp file's only job is the retrieval step."""
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        image.save(tmp_path)
+        exemplars = await asyncio.to_thread(_retrieve_image_exemplars, tmp_path)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+    logger.info(f"[image-retrieval] exemplars: {[Path(p).name for p, _ in exemplars]}")
+    return exemplars
+
+
+async def _call_hf_image(base64_image: str) -> str:
+    """Image-retrieval few-shot RAG (R2, opt-in, see config.IMAGE_RETRIEVAL_RAG):
+    reproduces the eval-measured R2-B config (constrained prompt, harmonized
+    RSNA pool) -- NOT the demo's free-report format, and does NOT apply the
+    report endpoint's modality-gating system prompt. A non-brain image in
+    this mode will get a constrained yes/no judgment, not a refusal -- that
+    is the documented tradeoff of reproducing the measured config exactly."""
+    image = _decode_image(base64_image)
+    exemplars = await _get_image_exemplars(image)
+
+    async with _hf_lock:
+        processor, model = await _load_hf_model()
+        inputs = _build_fewshot_inputs(processor, model, image, exemplars)
+        input_len = inputs["input_ids"].shape[-1]
+
+        def _generate():
+            import torch
+            with torch.inference_mode():
+                return model.generate(**inputs, max_new_tokens=_R2_MAX_NEW_TOKENS,
+                                      do_sample=False)
+
+        out = await asyncio.to_thread(_generate)
+
+    new_tokens = out[0][input_len:]
+    return processor.decode(new_tokens, skip_special_tokens=True).strip()
+
+
 async def _call_openrouter(base64_image: str, prompt: str, system_prompt: str) -> str:
     """test 環境：呼叫 OpenRouter 雲端 API"""
     headers = {
@@ -198,18 +311,41 @@ def _resolve_service_backend() -> str:
     return backend
 
 
+def _resolve_retrieval_mode(two_stage: bool | None, image_retrieval: bool | None) -> str:
+    """Resolve which HF-backend retrieval mode applies. Each flag falls back
+    to its own config default when not explicitly given (None); if both
+    resolve to True, fail fast instead of silently picking a precedence --
+    the two modes are mutually exclusive (different prompts, different
+    message structure)."""
+    use_two_stage = config.TWO_STAGE_RAG if two_stage is None else two_stage
+    use_image = config.IMAGE_RETRIEVAL_RAG if image_retrieval is None else image_retrieval
+    if use_two_stage and use_image:
+        raise ValueError(
+            "[錯誤] two_stage 與 image_retrieval 不能同時啟用——兩者是互斥的檢索模式。"
+        )
+    if use_image:
+        return "image"
+    if use_two_stage:
+        return "text-twostage"
+    return "none"
+
+
 async def generate_medical_report(base64_image: str, prompt: str, system_prompt: str,
-                                  two_stage: bool | None = None) -> str:
+                                  two_stage: bool | None = None,
+                                  image_retrieval: bool | None = None) -> str:
     """策略進入點：依據 config 決定派發哪一個環境流程
 
-    two_stage=None 時讀 config.TWO_STAGE_RAG(預設 off);只在 HF 後端生效——
-    OpenRouter(test)鏡像為選配,目前未實作,旗標在該後端下不生效。
+    two_stage/image_retrieval 為 None 時讀各自的 config 預設(皆預設 off);
+    只在 HF 後端生效——OpenRouter(test)鏡像為選配,目前未實作,兩個旗標在
+    該後端下都不生效。
     """
     backend = _resolve_service_backend()
     if backend == "openrouter":
         return await _call_openrouter(base64_image, prompt, system_prompt)
-    use_two_stage = config.TWO_STAGE_RAG if two_stage is None else two_stage
-    if use_two_stage:
+    mode = _resolve_retrieval_mode(two_stage, image_retrieval)
+    if mode == "image":
+        return await _call_hf_image(base64_image)
+    if mode == "text-twostage":
         return await _call_hf_twostage(base64_image, prompt, system_prompt)
     return await _call_hf(base64_image, prompt, system_prompt)
 
@@ -257,6 +393,45 @@ async def _stream_hf_twostage(base64_image: str, prompt: str, system_prompt: str
     logger.info(f"[two-stage] retrieved context ({len(context)} chars): {context[:200]!r}")
     async for token in _stream_hf(base64_image, prompt, enhanced_system_prompt):
         yield token
+
+
+async def _stream_hf_image(base64_image: str):
+    """串流版 R2(影像檢索 few-shot)。檢索在鎖外做完,串流生成在鎖內,
+    跟 _call_hf_image 同一套檢索/建構邏輯,只是 generate 換成 streamer。"""
+    from transformers import TextIteratorStreamer
+
+    image = _decode_image(base64_image)
+    exemplars = await _get_image_exemplars(image)
+
+    async with _hf_lock:
+        processor, model = await _load_hf_model()
+        inputs = _build_fewshot_inputs(processor, model, image, exemplars)
+        streamer = TextIteratorStreamer(processor.tokenizer, skip_prompt=True,
+                                        skip_special_tokens=True)
+
+        def _generate():
+            import torch
+            with torch.inference_mode():
+                model.generate(**inputs, max_new_tokens=_R2_MAX_NEW_TOKENS,
+                               do_sample=False, streamer=streamer)
+
+        threading.Thread(target=_generate, daemon=True).start()
+
+        loop = asyncio.get_running_loop()
+        queue = asyncio.Queue()
+
+        def _pump():
+            for piece in streamer:
+                loop.call_soon_threadsafe(queue.put_nowait, piece)
+            loop.call_soon_threadsafe(queue.put_nowait, None)  # 結束哨兵
+
+        threading.Thread(target=_pump, daemon=True).start()
+
+        while True:
+            piece = await queue.get()
+            if piece is None:
+                break
+            yield piece
 
 
 async def _stream_openrouter(base64_image: str, prompt: str, system_prompt: str):
@@ -309,14 +484,19 @@ async def _stream_openrouter(base64_image: str, prompt: str, system_prompt: str)
 
 
 async def generate_medical_report_stream(base64_image: str, prompt: str, system_prompt: str,
-                                         two_stage: bool | None = None):
+                                         two_stage: bool | None = None,
+                                         image_retrieval: bool | None = None):
     """串流版策略進入點：依據 config 決定派發哪一個環境流程，逐 token yield"""
     backend = _resolve_service_backend()
     if backend == "openrouter":
         gen = _stream_openrouter(base64_image, prompt, system_prompt)
     else:
-        use_two_stage = config.TWO_STAGE_RAG if two_stage is None else two_stage
-        gen = (_stream_hf_twostage(base64_image, prompt, system_prompt) if use_two_stage
-               else _stream_hf(base64_image, prompt, system_prompt))
+        mode = _resolve_retrieval_mode(two_stage, image_retrieval)
+        if mode == "image":
+            gen = _stream_hf_image(base64_image)
+        elif mode == "text-twostage":
+            gen = _stream_hf_twostage(base64_image, prompt, system_prompt)
+        else:
+            gen = _stream_hf(base64_image, prompt, system_prompt)
     async for token in gen:
         yield token
