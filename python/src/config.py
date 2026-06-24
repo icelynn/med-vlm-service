@@ -31,12 +31,10 @@ MODELS = {
         # falsely rejected a valid CT-ICH slice (twice, with two different excuses);
         # minimax/minimax-m3 has been verified multiple times on the same slice.
         "openrouter": os.getenv("OPENROUTER_MAIN_MODEL", "minimax/minimax-m3"),
-        "ollama": os.getenv("OLLAMA_MAIN_MODEL", "qwen3-vl:4b"),
         "hf": os.getenv("HF_MAIN_MODEL", "Qwen/Qwen3-VL-4B-Instruct"),
     },
     "medical_baseline": {
         "openrouter": None,  # MedGemma is not hosted on OpenRouter
-        "ollama": os.getenv("OLLAMA_MEDICAL_MODEL", "medgemma:4b"),
         "hf": os.getenv("HF_MEDICAL_MODEL", "google/medgemma-4b-it"),
     },
 }
@@ -50,13 +48,6 @@ class Config:
     # OpenRouter (test)
     OPENROUTER_API_URL = os.getenv("OPENROUTER_API_URL", "")
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-
-    # Ollama (demo). Intentionally no OLLAMA_API_KEY: Ollama's own API has no auth
-    # mechanism, and this proxy reaches it over 127.0.0.1 on the same EC2 instance —
-    # the security boundary is "not reachable from outside the instance" (localhost
-    # bind + security group never opening 11434), not an app-level token. See
-    # docs/Environments/aws_setup_guide.md.
-    OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "")
 
     # Findings-conditioned two-stage RAG (opt-in, HF backend only). Default off:
     # the demo's validated refusal behavior (see core-challenges doc) was tested
@@ -75,7 +66,7 @@ class Config:
 
     @property
     def backend(self) -> str:
-        """The inference backend for the current ENV (openrouter / hf / ollama)."""
+        """The inference backend for the current ENV (openrouter / hf)."""
         return ENV_BACKEND.get(self.ENV)
 
     @property
