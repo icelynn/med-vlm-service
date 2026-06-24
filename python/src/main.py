@@ -86,6 +86,7 @@ async def analyze_medical_image(
     prompt: str = Form(...),
     image: UploadFile = File(...),
     two_stage: Optional[bool] = Form(None),
+    image_retrieval: Optional[bool] = Form(None),
 ):
     try:
         # 1. Asynchronously read image raw binary data and convert to Base64 string
@@ -95,7 +96,8 @@ async def analyze_medical_image(
         # 2. Call environment routing module (test -> OpenRouter, demo -> HF transformers)
         logger.info("Dispatching multimodal core for medical image report generation...")
         report_content = await generate_medical_report(base64_image, prompt, SYSTEM_PROMPT,
-                                                        two_stage=two_stage)
+                                                        two_stage=two_stage,
+                                                        image_retrieval=image_retrieval)
         
         # 3. Return structured report
         return {"report": report_content}
@@ -113,6 +115,7 @@ async def analyze_medical_image_stream(
     prompt: str = Form(...),
     image: UploadFile = File(...),
     two_stage: Optional[bool] = Form(None),
+    image_retrieval: Optional[bool] = Form(None),
 ):
     """SSE variant of /analyze: streams the report token-by-token as text/event-stream.
 
@@ -126,7 +129,8 @@ async def analyze_medical_image_stream(
         logger.info("Dispatching streaming multimodal inference...")
         try:
             async for token in generate_medical_report_stream(base64_image, prompt, SYSTEM_PROMPT,
-                                                               two_stage=two_stage):
+                                                               two_stage=two_stage,
+                                                               image_retrieval=image_retrieval):
                 yield f"data: {json.dumps({'delta': token})}\n\n"
         except Exception as e:
             logger.error(f"Streaming inference failed: {str(e)}")

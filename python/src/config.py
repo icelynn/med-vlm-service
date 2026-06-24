@@ -63,6 +63,16 @@ class Config:
     # without this, so it must not change anything unless explicitly enabled.
     TWO_STAGE_RAG = os.getenv("TWO_STAGE_RAG", "false").lower() == "true"
 
+    # Image-retrieval few-shot RAG (R2, opt-in, HF backend only). Default off,
+    # same reason as TWO_STAGE_RAG. Reproduces the eval-measured R2-B config
+    # (RSNA pool, histogram-matched to CT-ICH) -- see python/rag/providers.py
+    # and python/eval/run_baseline.py's --context image.
+    IMAGE_RETRIEVAL_RAG = os.getenv("IMAGE_RETRIEVAL_RAG", "false").lower() == "true"
+    R2_INDEX_DIR = os.getenv("R2_INDEX_DIR",
+                             str(_project_root / "data" / "rag" / "image_index_b_harmonized"))
+    R2_POOL_DIR = os.getenv("R2_POOL_DIR",
+                            str(_project_root / "data" / "rsna" / "pool_images_harmonized"))
+
     @property
     def backend(self) -> str:
         """The inference backend for the current ENV (openrouter / hf / ollama)."""

@@ -115,6 +115,11 @@ curl -X POST [http://127.0.0.1:8000/analyze](http://127.0.0.1:8000/analyze) \
   -F "image=@./data/test_images/normal_xray.jpg"
 ```
 
+`/analyze` and `/analyze/stream` (HF backend only) also accept two opt-in, mutually-exclusive form fields (both default off via `TWO_STAGE_RAG`/`IMAGE_RETRIEVAL_RAG` env vars; passing both `true` raises an error):
+
+- `two_stage=true` — findings-conditioned two-stage text-RAG (see Evaluation Results: this is a *null* result, kept for architecture-completeness demonstration, not for a quality improvement).
+- `image_retrieval=true` — R2 image-retrieval few-shot, reproducing the eval-measured R2-B config (constrained `HEMORRHAGE`/`SUBTYPES` judgment, not a free-text report). **Caveat**: this mode uses the eval's constrained prompts, not `system_prompt.txt`'s modality-gating system prompt — a non-brain image will get a constrained yes/no judgment instead of the report endpoint's validated refusal. This is the accepted tradeoff of reproducing the measured 0.575/0.667 F1 configuration exactly, not a regression.
+
 ## Evaluation Results
 
 The `dev` track (`python/eval/`) runs a controlled, reproducible evaluation protocol across two independent head-CT hemorrhage datasets: [CT-ICH](https://physionet.org/content/ct-ich/1.3.1/) (75-patient cohort, PhysioNet) and [RSNA Intracranial Hemorrhage Detection](https://www.kaggle.com/c/rsna-intracranial-hemorrhage-detection) (multi-institutional Kaggle challenge). 150 slices per dataset, drawn via multi-label stratified sampling so each sample's subtype prevalence and co-occurrence rate track the true population (not an artificially balanced subset). Every row uses the same manifest within its dataset, the same constrained prompt, and the same scoring code — only one factor changes per row (the model, or whether a retrieval context is injected).
