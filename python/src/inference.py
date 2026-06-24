@@ -41,6 +41,12 @@ _R2_MAX_NEW_TOKENS = 64  # matches run_baseline.py: the constrained answer is sh
 
 _hf_cache = {}  # model_id -> (processor, model); loaded lazily, kept resident
 _hf_lock = asyncio.Lock()  # one GPU, one generate() at a time
+_retrieval_lock = asyncio.Lock()  # providers.py/biomedclip_embed.py's lazy singletons
+                                  # (BiomedCLIP model, image index) are plain module
+                                  # globals with no thread-safety; concurrent requests
+                                  # hitting the cold cache via asyncio.to_thread would
+                                  # race to populate them. Separate from _hf_lock so
+                                  # CPU retrieval never blocks GPU generation.
 
 
 def _decode_image(base64_image: str) -> Image.Image:
@@ -191,7 +197,8 @@ async def _get_image_exemplars(image: Image.Image):
         tmp_path = tmp.name
     try:
         image.save(tmp_path)
-        exemplars = await asyncio.to_thread(_retrieve_image_exemplars, tmp_path)
+        async with _retrieval_lock:
+            exemplars = await asyncio.to_thread(_retrieve_image_exemplars, tmp_path)
     finally:
         Path(tmp_path).unlink(missing_ok=True)
     logger.info(f"[image-retrieval] exemplars: {[Path(p).name for p, _ in exemplars]}")
