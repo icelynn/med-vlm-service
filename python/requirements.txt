@@ -1,18 +1,26 @@
-fastapi
-uvicorn
-httpx
-pydantic
-python-multipart
-chromadb
-transformers
-torch
-sentence-transformers
-numpy
-scikit-learn
-python-dotenv
-Pillow
-nibabel
-kagglehub
-iterative-stratification
-open_clip_torch
-scikit-image
+# Platform-agnostic packages, pinned to versions verified in this project's
+# local dev venv (2026-06-24). transformers/torch are deliberately NOT pinned
+# here -- the GPU eval/demo environment (EC2 T4) installs a CUDA-specific
+# torch build separately (see python/scripts/requirements-feasibility.txt),
+# and pinning a CPU-resolved version here would misrepresent what actually
+# produced the published evaluation numbers. Re-pin transformers/torch/
+# nibabel from the EC2 venv directly (`pip freeze`) once that instance is
+# reachable -- it was stopped as of this pass.
+fastapi==0.136.3
+uvicorn==0.49.0
+httpx==0.28.1
+pydantic==2.13.4
+python-multipart==0.0.32
+chromadb==1.5.9
+transformers  # see note above -- pin from the EC2 venv, not this file
+torch  # see note above -- pin from the EC2 venv, not this file
+sentence-transformers==5.5.1
+numpy==2.4.6
+scikit-learn==1.9.0
+python-dotenv==1.2.2
+Pillow==12.2.0
+nibabel  # not installed in this dev venv -- pin from the EC2 venv
+kagglehub==1.0.2
+iterative-stratification==0.1.9
+open_clip_torch==3.3.0
+scikit-image==0.26.0

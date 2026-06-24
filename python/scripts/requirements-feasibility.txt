@@ -12,6 +12,11 @@
 # (cu121 = CUDA 12.1, compatible with the T4's 12.2 driver.)
 
 # torch / torchvision are installed via the cu121 index above, not from here.
+# NOTE on reproducibility: the bounds below are floors, not exact pins -- they
+# guarantee Qwen3-VL/device_map support exists, not that a fresh install
+# reproduces this project's exact eval numbers. Exact-pin these (and torch
+# itself) from the EC2 venv's `pip freeze` for a byte-for-byte reproducible
+# environment; not done yet because the instance was stopped as of this pass.
 transformers>=4.57          # Qwen3-VL support landed in recent transformers
 accelerate>=0.34            # required for device_map="auto"
 bitsandbytes>=0.43          # 4-bit / 8-bit quantization (needs CUDA)

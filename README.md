@@ -60,7 +60,7 @@ Two opt-in, mutually-exclusive flags (`-F "image_retrieval=true"` / `-F "two_sta
 
 </details>
 
-<details>
+<details id="architecture">
 <summary><b>Architecture</b> (click to expand)</summary>
 
 1. **Ingress (`FastAPI`)** — `/analyze` (single response) or `/analyze/stream` (SSE) accept a multipart image + prompt.
@@ -102,6 +102,10 @@ Controlled, reproducible protocol across two independent head-CT hemorrhage data
 *CI = 95% bootstrap percentile interval (2000 resamples). † **R2-C is the best point of a 4-point resolution sweep, not a single pre-registered setting** — see Honest limitations for the full sweep and why we still report it as primary.*
 
 Image-Retrieval gives the same general model 3 visually-similar reference slices with known labels instead of text, retrieved from a study-disjoint RSNA pool (verified zero patient/study overlap by construction, `python/rag/build_rsna_pool.py`). **R2-C** = RSNA pool → RSNA eval. **R2-B** = RSNA pool → CT-ICH eval (pool histogram-matched to CT-ICH first, `python/rag/harmonize_pool.py`).
+
+<p align="center"><img src="docs/media/per_subtype_heatmap.svg" alt="Per-subtype F1 heatmap by method and dataset" width="100%"></p>
+
+Reading the heatmap: Image-Retrieval is the only method that gets every subtype off zero on both datasets (SAH on CT-ICH is the exception, support=6 — too few positives to trust any score). No-RAG and Text-RAG are blank (F1=0.000) on every subtype except RSNA's IPH, which is the one subtype both datasets' co-occurrence-heavy positives keep landing on by chance, not a sign either method "works" on it.
 
 </details>
 
@@ -145,7 +149,7 @@ python python/eval/significance_report.py --self-test   # offline sanity check, 
 - **Retrieval quality only shows a measurable edge over random exemplars once the domain is matched.** We compared real (similarity-retrieved) exemplars against a same-pool *random*-exemplar control (k=3 random images, not nearest-neighbor) to separate "the model benefits from seeing any few-shot example" (format demonstration) from "the model benefits from a *visually relevant* one." Under R2-C's original resolution mismatch, retrieved exemplars were *not* significantly better than random (+0.060 F1, p=0.163). Once resolution was matched, retrieval pulled significantly ahead of random (+0.170 F1, p<0.0001), and R2-B (already domain-matched via histogram matching) showed the same pattern (+0.148 F1, p=0.001). Even the random-exemplar control beats No-RAG/Text-RAG decisively on both datasets (p<0.0001) — so *some* exemplar, any exemplar, helps a lot; genuine retrieval adds a further, real increment on top, conditional on the visual domain being consistent (see the bullet above for why "domain matching" is more subtle than it sounds).
 - **More domain-matching is not always better.** We also tried stacking intensity (histogram) harmonization on top of R2-C's resolution match, targeting RSNA eval's own aggregate intensity distribution (`python/rag/harmonize_pool.py --reference-images data/rsna/images`). That dropped F1 from 0.667 to 0.599 (diff -0.068, p=0.05 — right at the conventional significance boundary) instead of improving it further, though retrieval still beat its own random-exemplar control in this setting (+0.116 F1, p=0.002). Histogram matching trades off local contrast to chase a global distribution match, and a literature search earlier in this work already flagged it as the weakest of the harmonization techniques we reviewed (see `python/rag/retrieval_sentinel.py`'s docstring) — this result is consistent with that limitation rather than a fluke. We report the resolution-only-matched number (0.667) as R2-C's primary result, not the further-harmonized one.
 - **Small n on both datasets.** 150 slices per dataset; the bootstrap CIs above are the honest expression of how much that limits precision of the point estimates, especially for rarer subtypes.
-- **Rule-based answer parsing, not a learned clinical labeler.** Free-text model output is parsed with a constrained-format-first, keyword-fallback parser (`python/eval/parse_answer.py`); parse-failure and refusal rates are reported as first-class metrics precisely so a low score can't be hand-waved away as "the parser didn't understand it" (both rates are 0% across all rows above). The parser's keyword/regex rules have been spot-checked against raw model text but not yet scored against an independent human-labeled sample — see the open items tracked in `.docs/Week5/`.
+- **Rule-based answer parsing, not a learned clinical labeler.** Free-text model output is parsed with a constrained-format-first, keyword-fallback parser (`python/eval/parse_answer.py`); parse-failure and refusal rates are reported as first-class metrics precisely so a low score can't be hand-waved away as "the parser didn't understand it" (both rates are 0% across all rows above). The parser's keyword/regex rules have been spot-checked against raw model text but not yet scored against an independent human-labeled sample — an open item, not yet done.
 - **The image-retrieval demo path's modality gate is decoupled from the measured eval configuration, and has a measured, non-zero false-refusal rate.** `image_retrieval=true` runs a separate, minimal yes/no generate before the constrained few-shot judgment that was actually measured (0.575/0.667 F1) — so the substantive judgment itself stays identical to what was scored, while a non-head-CT image gets declined. Validated on the full 150-image CT-ICH manifest plus the 22-image defensive set (`python/scripts/validate_r2_gate.py`, 2026-06-24): the defensive set is 0/22 false passes (every non-head-CT image correctly declined) across all three prompt iterations below, but CT-ICH false refusals only fell from 13/150 (8.7%) → 7/150 (4.7%) → 4/150 (2.7%) as the gate prompt was tightened — it did not reach zero. The 4 remaining false refusals (`055_017.png`, `078_002.png`, `085_006.png`, `087_001.png`) are all the very first or last slice in their patient's scan range — boundary slices near the skull vertex or base showing little brain tissue, a real, identified edge case, not random noise. We stopped iterating at 3 prompt rounds rather than keep tuning against this exact validation set (which would risk overfitting to these specific images rather than generalizing); the residual 2.7% false-refusal rate is reported here rather than hidden.
 
 </details>
@@ -162,7 +166,7 @@ python python/eval/significance_report.py --self-test   # offline sanity check, 
 
 ---
 
-<details>
+<details id="quick-start">
 <summary><b>Quick Start</b> (click to expand)</summary>
 
 ### 0. Dataset access (required before any evaluation run)
