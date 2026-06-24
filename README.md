@@ -157,6 +157,12 @@ HF_HOME=/mnt/hf MODEL_ROLE=main      python python/eval/run_baseline.py --manife
 # add --image-random to either command to reproduce the random-exemplar control
 python python/eval/score_baseline.py --results results.jsonl
 python python/eval/compare_runs.py   # regenerate the full comparison table from all summaries
+
+# every paired-bootstrap p-value quoted above/below is reproducible from one command, e.g.:
+python python/eval/significance_report.py --manifest data/rsna/manifest.csv \
+  --a data/rsna/results_rag.jsonl --label-a "Text-RAG (R1)" \
+  --b data/rsna/results_rag_twostage.jsonl --label-b "Text-RAG two-stage"
+python python/eval/significance_report.py --self-test   # offline sanity check, no GPU needed
 ```
 
 ### Honest limitations
