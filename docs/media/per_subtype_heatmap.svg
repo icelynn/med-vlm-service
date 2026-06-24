@@ -1,0 +1,178 @@
+<svg viewBox="0 0 1020 445" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <rect x="0" y="0" width="1020" height="445" rx="14" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+  <text x="510.0" y="30" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">Per-Subtype F1 by Method &#215; Dataset</text>
+  <text x="510.0" y="47" text-anchor="middle" font-size="12" fill="#6B7280">darker = higher F1 &#183; n = positive-subtype support out of 150 slices</text>
+  <text x="325.0" y="81" text-anchor="middle" font-size="15" font-weight="700" fill="#111827">CT-ICH</text>
+  <text x="169.0" y="93" text-anchor="middle" font-size="12" font-weight="700" fill="#374151">IPH</text>
+  <text x="247.0" y="93" text-anchor="middle" font-size="12" font-weight="700" fill="#374151">IVH</text>
+  <text x="325.0" y="93" text-anchor="middle" font-size="12" font-weight="700" fill="#374151">SAH</text>
+  <text x="403.0" y="93" text-anchor="middle" font-size="12" font-weight="700" fill="#374151">EDH</text>
+  <text x="481.0" y="93" text-anchor="middle" font-size="12" font-weight="700" fill="#374151">SDH</text>
+  <text x="122" y="127.0" text-anchor="end" font-size="12" fill="#374151">No-RAG</text>
+  <rect x="130" y="95" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="168.0" y="122.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="168.0" y="136.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=25</text>
+  <rect x="208" y="95" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="246.0" y="122.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="246.0" y="136.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=8</text>
+  <rect x="286" y="95" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="324.0" y="122.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="324.0" y="136.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=6</text>
+  <rect x="364" y="95" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="402.0" y="122.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="402.0" y="136.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=57</text>
+  <rect x="442" y="95" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="480.0" y="122.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="480.0" y="136.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=18</text>
+  <text x="122" y="183.0" text-anchor="end" font-size="12" fill="#374151">Text-RAG</text>
+  <rect x="130" y="151" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="168.0" y="178.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="168.0" y="192.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=25</text>
+  <rect x="208" y="151" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="246.0" y="178.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="246.0" y="192.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=8</text>
+  <rect x="286" y="151" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="324.0" y="178.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="324.0" y="192.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=6</text>
+  <rect x="364" y="151" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="402.0" y="178.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="402.0" y="192.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=57</text>
+  <rect x="442" y="151" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="480.0" y="178.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="480.0" y="192.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=18</text>
+  <text x="122" y="239.0" text-anchor="end" font-size="12" fill="#374151">MedGemma</text>
+  <rect x="130" y="207" width="76" height="54" fill="#BCE5CB" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="168.0" y="234.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.17</text>
+  <text x="168.0" y="248.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=25</text>
+  <rect x="208" y="207" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="246.0" y="234.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="246.0" y="248.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=8</text>
+  <rect x="286" y="207" width="76" height="54" fill="#BEE5CD" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="324.0" y="234.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.17</text>
+  <text x="324.0" y="248.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=6</text>
+  <rect x="364" y="207" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="402.0" y="234.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="402.0" y="248.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=57</text>
+  <rect x="442" y="207" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="480.0" y="234.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="480.0" y="248.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=18</text>
+  <text x="122" y="295.0" text-anchor="end" font-size="12" fill="#374151">Image-Retrieval</text>
+  <rect x="130" y="263" width="76" height="54" fill="#83CE9E" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="168.0" y="290.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.32</text>
+  <text x="168.0" y="304.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=25</text>
+  <rect x="208" y="263" width="76" height="54" fill="#52BB79" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="246.0" y="290.0" text-anchor="middle" font-size="13" font-weight="600" fill="#FFFFFF">0.44</text>
+  <text x="246.0" y="304.0" text-anchor="middle" font-size="9" fill="#FFFFFF" opacity="0.85">n=8</text>
+  <rect x="286" y="263" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="324.0" y="290.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="324.0" y="304.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=6</text>
+  <rect x="364" y="263" width="76" height="54" fill="#B6E2C6" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="402.0" y="290.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.19</text>
+  <text x="402.0" y="304.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=57</text>
+  <rect x="442" y="263" width="76" height="54" fill="#C6E9D3" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="480.0" y="290.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.15</text>
+  <text x="480.0" y="304.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=18</text>
+  <text x="122" y="351.0" text-anchor="end" font-size="12" fill="#374151">Random Control</text>
+  <rect x="130" y="319" width="76" height="54" fill="#C3E7D1" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="168.0" y="346.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.15</text>
+  <text x="168.0" y="360.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=25</text>
+  <rect x="208" y="319" width="76" height="54" fill="#A9DDBC" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="246.0" y="346.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.22</text>
+  <text x="246.0" y="360.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=8</text>
+  <rect x="286" y="319" width="76" height="54" fill="#C8E9D4" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="324.0" y="346.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.14</text>
+  <text x="324.0" y="360.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=6</text>
+  <rect x="364" y="319" width="76" height="54" fill="#BBE4CA" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="402.0" y="346.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.17</text>
+  <text x="402.0" y="360.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=57</text>
+  <rect x="442" y="319" width="76" height="54" fill="#E9F6EE" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="480.0" y="346.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.06</text>
+  <text x="480.0" y="360.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=18</text>
+  <text x="785.0" y="81" text-anchor="middle" font-size="15" font-weight="700" fill="#111827">RSNA</text>
+  <text x="629.0" y="93" text-anchor="middle" font-size="12" font-weight="700" fill="#374151">IPH</text>
+  <text x="707.0" y="93" text-anchor="middle" font-size="12" font-weight="700" fill="#374151">IVH</text>
+  <text x="785.0" y="93" text-anchor="middle" font-size="12" font-weight="700" fill="#374151">SAH</text>
+  <text x="863.0" y="93" text-anchor="middle" font-size="12" font-weight="700" fill="#374151">EDH</text>
+  <text x="941.0" y="93" text-anchor="middle" font-size="12" font-weight="700" fill="#374151">SDH</text>
+  <text x="582" y="127.0" text-anchor="end" font-size="12" fill="#374151">No-RAG</text>
+  <rect x="590" y="95" width="76" height="54" fill="#74C893" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="628.0" y="122.0" text-anchor="middle" font-size="13" font-weight="600" fill="#FFFFFF">0.36</text>
+  <text x="628.0" y="136.0" text-anchor="middle" font-size="9" fill="#FFFFFF" opacity="0.85">n=30</text>
+  <rect x="668" y="95" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="706.0" y="122.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="706.0" y="136.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=24</text>
+  <rect x="746" y="95" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="784.0" y="122.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="784.0" y="136.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=24</text>
+  <rect x="824" y="95" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="862.0" y="122.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="862.0" y="136.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=4</text>
+  <rect x="902" y="95" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="940.0" y="122.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="940.0" y="136.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=50</text>
+  <text x="582" y="183.0" text-anchor="end" font-size="12" fill="#374151">Text-RAG</text>
+  <rect x="590" y="151" width="76" height="54" fill="#6FC68F" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="628.0" y="178.0" text-anchor="middle" font-size="13" font-weight="600" fill="#FFFFFF">0.37</text>
+  <text x="628.0" y="192.0" text-anchor="middle" font-size="9" fill="#FFFFFF" opacity="0.85">n=30</text>
+  <rect x="668" y="151" width="76" height="54" fill="#E0F3E7" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="706.0" y="178.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.08</text>
+  <text x="706.0" y="192.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=24</text>
+  <rect x="746" y="151" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="784.0" y="178.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="784.0" y="192.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=24</text>
+  <rect x="824" y="151" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="862.0" y="178.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="862.0" y="192.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=4</text>
+  <rect x="902" y="151" width="76" height="54" fill="#F0F9F3" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="940.0" y="178.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.04</text>
+  <text x="940.0" y="192.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=50</text>
+  <text x="582" y="239.0" text-anchor="end" font-size="12" fill="#374151">MedGemma</text>
+  <rect x="590" y="207" width="76" height="54" fill="#28AA58" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="628.0" y="234.0" text-anchor="middle" font-size="13" font-weight="600" fill="#FFFFFF">0.55</text>
+  <text x="628.0" y="248.0" text-anchor="middle" font-size="9" fill="#FFFFFF" opacity="0.85">n=30</text>
+  <rect x="668" y="207" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="706.0" y="234.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="706.0" y="248.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=24</text>
+  <rect x="746" y="207" width="76" height="54" fill="#E6F5EC" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="784.0" y="234.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.06</text>
+  <text x="784.0" y="248.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=24</text>
+  <rect x="824" y="207" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="862.0" y="234.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="862.0" y="248.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=4</text>
+  <rect x="902" y="207" width="76" height="54" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="940.0" y="234.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.00</text>
+  <text x="940.0" y="248.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=50</text>
+  <text x="582" y="295.0" text-anchor="end" font-size="12" fill="#374151">Image-Retrieval</text>
+  <rect x="590" y="263" width="76" height="54" fill="#4FBA76" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="628.0" y="290.0" text-anchor="middle" font-size="13" font-weight="600" fill="#FFFFFF">0.45</text>
+  <text x="628.0" y="304.0" text-anchor="middle" font-size="9" fill="#FFFFFF" opacity="0.85">n=30</text>
+  <rect x="668" y="263" width="76" height="54" fill="#72C791" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="706.0" y="290.0" text-anchor="middle" font-size="13" font-weight="600" fill="#FFFFFF">0.36</text>
+  <text x="706.0" y="304.0" text-anchor="middle" font-size="9" fill="#FFFFFF" opacity="0.85">n=24</text>
+  <rect x="746" y="263" width="76" height="54" fill="#CAEAD6" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="784.0" y="290.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.14</text>
+  <text x="784.0" y="304.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=24</text>
+  <rect x="824" y="263" width="76" height="54" fill="#CEECD9" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="862.0" y="290.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.12</text>
+  <text x="862.0" y="304.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=4</text>
+  <rect x="902" y="263" width="76" height="54" fill="#87CFA2" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="940.0" y="290.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.31</text>
+  <text x="940.0" y="304.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=50</text>
+  <text x="582" y="351.0" text-anchor="end" font-size="12" fill="#374151">Random Control</text>
+  <rect x="590" y="319" width="76" height="54" fill="#3DB268" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="628.0" y="346.0" text-anchor="middle" font-size="13" font-weight="600" fill="#FFFFFF">0.50</text>
+  <text x="628.0" y="360.0" text-anchor="middle" font-size="9" fill="#FFFFFF" opacity="0.85">n=30</text>
+  <rect x="668" y="319" width="76" height="54" fill="#C5E8D2" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="706.0" y="346.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.15</text>
+  <text x="706.0" y="360.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=24</text>
+  <rect x="746" y="319" width="76" height="54" fill="#EEF8F2" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="784.0" y="346.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.04</text>
+  <text x="784.0" y="360.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=24</text>
+  <rect x="824" y="319" width="76" height="54" fill="#D1EDDC" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="862.0" y="346.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.12</text>
+  <text x="862.0" y="360.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=4</text>
+  <rect x="902" y="319" width="76" height="54" fill="#C0E6CE" stroke="#E5E7EB" stroke-width="1" rx="3"/>
+  <text x="940.0" y="346.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">0.16</text>
+  <text x="940.0" y="360.0" text-anchor="middle" font-size="9" fill="#111827" opacity="0.85">n=50</text>
+  <text x="510.0" y="429" text-anchor="middle" font-size="11" fill="#9CA3AF">Same summary JSONs as the README comparison table &#8212; no new inference runs. Two-stage Text-RAG (identical to Text-RAG, omitted).</text>
+</svg>
