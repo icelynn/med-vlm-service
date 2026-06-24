@@ -79,6 +79,14 @@ USER_PROMPT = (
     "EDH=epidural, SDH=subdural."
 )
 
+# Stage-1 prompt for --context text-twostage: open-ended (not the constrained
+# USER_PROMPT) so the model's free-text description can drive retrieval.
+STAGE1_PROMPT = (
+    "Describe any abnormal findings visible in this head CT slice in one or "
+    "two sentences."
+)
+TEXT_TWOSTAGE_K = 2  # < 5 (the whole KB) so retrieval can actually discriminate
+
 
 def load_manifest(path):
     with open(path, newline="", encoding="utf-8") as f:
@@ -111,8 +119,10 @@ def main():
     ap.add_argument("--manifest", default=str(MANIFEST))
     ap.add_argument("--images", default=str(IMAGES_DIR))
     ap.add_argument("--out", default=str(DATA_DIR / "results.jsonl"))
-    ap.add_argument("--context", default="none", choices=["none", "text", "image"],
-                    help="retrieval-injection provider (R1=text, R2=image, planned); "
+    ap.add_argument("--context", default="none",
+                    choices=["none", "text", "image", "text-twostage"],
+                    help="retrieval-injection provider (R1=text, R2=image; "
+                         "text-twostage=findings-conditioned R1 variant); "
                          "default 'none' keeps the No-RAG baseline unchanged")
     ap.add_argument("--image-index-dir", default=None,
                     help="--context image only: override the BiomedCLIP index dir "
@@ -171,6 +181,12 @@ def main():
         print(f"[info] context provider=image (per-slice retrieval, built inside the loop)"
               + (f"  index_dir={args.image_index_dir}" if args.image_index_dir else "")
               + ("  RANDOM-BASELINE" if args.image_random else ""))
+    elif args.context == "text-twostage":
+        # Context depends on stage-1's per-image findings, so (like "image") it
+        # can't be built once before the loop.
+        system_prompt = SYSTEM_PROMPT
+        print(f"[info] context provider=text-twostage (stage-1 findings -> "
+              f"retrieve k={TEXT_TWOSTAGE_K} -> stage-2)")
     else:
         context = build_context(args.context)
         system_prompt = f"{SYSTEM_PROMPT}\n\n{context}" if context else SYSTEM_PROMPT
@@ -186,11 +202,24 @@ def main():
             if not img_path.is_file():
                 print(f"[warn] missing image {row['image_file']} — skipped")
                 continue
+            stage1_findings = None
             if args.context == "image":
                 exemplars = build_context("image", image_path=str(img_path), **image_context_kwargs)
                 text, gen_s, n_tok = run_inference_fewshot(
                     processor, model, str(img_path), exemplars, USER_PROMPT, system_prompt,
                     args.max_new_tokens, args.max_image_size)
+            elif args.context == "text-twostage":
+                findings, gen_s1, n_tok1 = run_inference(
+                    processor, model, str(img_path), STAGE1_PROMPT, SYSTEM_PROMPT,
+                    args.max_new_tokens, args.max_image_size)
+                stage1_findings = findings.strip()
+                context = build_context("text", query=stage1_findings, text_k=TEXT_TWOSTAGE_K)
+                slice_system_prompt = (f"{SYSTEM_PROMPT}\n\n{context}" if context
+                                       else SYSTEM_PROMPT)
+                text, gen_s2, n_tok2 = run_inference(
+                    processor, model, str(img_path), USER_PROMPT, slice_system_prompt,
+                    args.max_new_tokens, args.max_image_size)
+                gen_s, n_tok = gen_s1 + gen_s2, n_tok1 + n_tok2
             else:
                 text, gen_s, n_tok = run_inference(
                     processor, model, str(img_path), USER_PROMPT, system_prompt,
@@ -212,6 +241,8 @@ def main():
                 "gen_seconds": round(gen_s, 2),
                 "n_tokens": n_tok,
             }
+            if stage1_findings is not None:
+                rec["stage1_findings"] = stage1_findings
             fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
             fout.flush()
             if i % 10 == 0 or i == len(todo):

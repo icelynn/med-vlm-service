@@ -28,11 +28,13 @@ DATA_DIR = PROJECT_ROOT / "data"
 RUNS = [
     ("CT-ICH", "No-RAG (Qwen3-VL-4B)",                  "ct_ich/baseline_summary.json"),
     ("CT-ICH", "Text-RAG (R1)",                         "ct_ich/summary_rag.json"),
+    ("CT-ICH", "Text-RAG two-stage (findings-conditioned)", "ct_ich/summary_rag_twostage.json"),
     ("CT-ICH", "MedGemma-4B (B)",                       "ct_ich/summary_medgemma.json"),
     ("CT-ICH", "Image-Retrieval (R2-B)",                "ct_ich/summary_imageretrieval.json"),
     ("CT-ICH", "Image-Retrieval (R2-B, random control)", "ct_ich/summary_imageretrieval_random.json"),
     ("RSNA",   "No-RAG (Qwen3-VL-4B)",                  "rsna/summary.json"),
     ("RSNA",   "Text-RAG (R1)",                         "rsna/summary_rag.json"),
+    ("RSNA",   "Text-RAG two-stage (findings-conditioned)", "rsna/summary_rag_twostage.json"),
     ("RSNA",   "MedGemma-4B (B)",                       "rsna/summary_medgemma.json"),
     ("RSNA",   "Image-Retrieval (R2-C, res-matched)",   "rsna/summary_imageretrieval_128matched.json"),
     ("RSNA",   "Image-Retrieval (R2-C, res-mismatched)", "rsna/summary_imageretrieval.json"),

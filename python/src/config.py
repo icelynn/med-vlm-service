@@ -58,6 +58,11 @@ class Config:
     # docs/Environments/aws_setup_guide.md.
     OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "")
 
+    # Findings-conditioned two-stage RAG (opt-in, HF backend only). Default off:
+    # the demo's validated refusal behavior (see core-challenges doc) was tested
+    # without this, so it must not change anything unless explicitly enabled.
+    TWO_STAGE_RAG = os.getenv("TWO_STAGE_RAG", "false").lower() == "true"
+
     @property
     def backend(self) -> str:
         """The inference backend for the current ENV (openrouter / hf / ollama)."""

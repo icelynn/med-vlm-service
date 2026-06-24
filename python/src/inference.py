@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import logging
 import re
 import sys
 import threading
@@ -12,8 +13,11 @@ from PIL import Image
 
 from config import config
 
+logger = logging.getLogger("medical-vlm-service")
+
 _HF_MAX_IMAGE_SIZE = 896  # vision-token-blowup cap, same lesson as feasibility_check.py
 _THINK_TAG_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
+_TWO_STAGE_TEXT_K = 2  # matches run_baseline.py's TEXT_TWOSTAGE_K (< 5 = whole KB)
 
 _hf_cache = {}  # model_id -> (processor, model); loaded lazily, kept resident
 _hf_lock = asyncio.Lock()  # one GPU, one generate() at a time
@@ -83,6 +87,29 @@ async def _call_hf(base64_image: str, prompt: str, system_prompt: str) -> str:
     new_tokens = out[0][input_len:]
     text = processor.decode(new_tokens, skip_special_tokens=True)
     return _strip_thinking(text)
+
+
+def _retrieve_text_context(findings: str) -> str:
+    """Stage-2 retrieval: condition build_context's query on stage-1 findings
+    instead of the fixed DEFAULT_QUERY (see python/rag/providers.py)."""
+    rag_dir = Path(__file__).resolve().parent.parent / "rag"
+    if str(rag_dir) not in sys.path:
+        sys.path.insert(0, str(rag_dir))
+    from providers import build_context
+
+    return build_context("text", query=findings, text_k=_TWO_STAGE_TEXT_K)
+
+
+async def _call_hf_twostage(base64_image: str, prompt: str, system_prompt: str) -> str:
+    """Findings-conditioned two-stage RAG (opt-in, see config.TWO_STAGE_RAG):
+    stage 1 runs the normal single-stage call to get findings, stage 2 retrieves
+    against those findings and reruns with the enhanced system prompt."""
+    findings = await _call_hf(base64_image, prompt, system_prompt)
+    context = await asyncio.to_thread(_retrieve_text_context, findings)
+    enhanced_system_prompt = f"{system_prompt}\n\n{context}" if context else system_prompt
+    logger.info(f"[two-stage] stage-1 findings: {findings[:200]!r}")
+    logger.info(f"[two-stage] retrieved context ({len(context)} chars): {context[:200]!r}")
+    return await _call_hf(base64_image, prompt, enhanced_system_prompt)
 
 
 async def _call_openrouter(base64_image: str, prompt: str, system_prompt: str) -> str:
@@ -171,11 +198,19 @@ def _resolve_service_backend() -> str:
     return backend
 
 
-async def generate_medical_report(base64_image: str, prompt: str, system_prompt: str) -> str:
-    """策略進入點：依據 config 決定派發哪一個環境流程"""
+async def generate_medical_report(base64_image: str, prompt: str, system_prompt: str,
+                                  two_stage: bool | None = None) -> str:
+    """策略進入點：依據 config 決定派發哪一個環境流程
+
+    two_stage=None 時讀 config.TWO_STAGE_RAG(預設 off);只在 HF 後端生效——
+    OpenRouter(test)鏡像為選配,目前未實作,旗標在該後端下不生效。
+    """
     backend = _resolve_service_backend()
     if backend == "openrouter":
         return await _call_openrouter(base64_image, prompt, system_prompt)
+    use_two_stage = config.TWO_STAGE_RAG if two_stage is None else two_stage
+    if use_two_stage:
+        return await _call_hf_twostage(base64_image, prompt, system_prompt)
     return await _call_hf(base64_image, prompt, system_prompt)
 
 
@@ -211,6 +246,17 @@ async def _stream_hf(base64_image: str, prompt: str, system_prompt: str):
             if piece is None:
                 break
             yield piece
+
+
+async def _stream_hf_twostage(base64_image: str, prompt: str, system_prompt: str):
+    """串流版兩階段:stage 1 非串流跑完拿 findings,stage 2 照舊串流。"""
+    findings = await _call_hf(base64_image, prompt, system_prompt)
+    context = await asyncio.to_thread(_retrieve_text_context, findings)
+    enhanced_system_prompt = f"{system_prompt}\n\n{context}" if context else system_prompt
+    logger.info(f"[two-stage] stage-1 findings: {findings[:200]!r}")
+    logger.info(f"[two-stage] retrieved context ({len(context)} chars): {context[:200]!r}")
+    async for token in _stream_hf(base64_image, prompt, enhanced_system_prompt):
+        yield token
 
 
 async def _stream_openrouter(base64_image: str, prompt: str, system_prompt: str):
@@ -262,12 +308,15 @@ async def _stream_openrouter(base64_image: str, prompt: str, system_prompt: str)
                     yield token
 
 
-async def generate_medical_report_stream(base64_image: str, prompt: str, system_prompt: str):
+async def generate_medical_report_stream(base64_image: str, prompt: str, system_prompt: str,
+                                         two_stage: bool | None = None):
     """串流版策略進入點：依據 config 決定派發哪一個環境流程，逐 token yield"""
     backend = _resolve_service_backend()
     if backend == "openrouter":
         gen = _stream_openrouter(base64_image, prompt, system_prompt)
     else:
-        gen = _stream_hf(base64_image, prompt, system_prompt)
+        use_two_stage = config.TWO_STAGE_RAG if two_stage is None else two_stage
+        gen = (_stream_hf_twostage(base64_image, prompt, system_prompt) if use_two_stage
+               else _stream_hf(base64_image, prompt, system_prompt))
     async for token in gen:
         yield token
