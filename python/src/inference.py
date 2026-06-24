@@ -39,6 +39,34 @@ _R2_USER_PROMPT = (
 )
 _R2_MAX_NEW_TOKENS = 64  # matches run_baseline.py: the constrained answer is short
 
+# R2 modality gate (opt-in path's only safety check -- the constrained R2 prompts
+# above have zero refusal logic by design, since that's the exact configuration
+# that was measured at F1=0.575/0.667). This is a SEPARATE, minimal generate call,
+# not a canned escape-hatch folded into the same prompt as the substantive task --
+# core-challenges #9 found that a canned-tag refusal channel (`[Error]`) inside the
+# *same* generation over-triggers even on valid images. A plain yes/no question in
+# its own call doesn't carry that failure mode, but to stay safe it still fails
+# OPEN (treats anything not starting with "NO" as a pass) rather than blocking on
+# an ambiguous answer.
+_GATE_SYSTEM_PROMPT = "You are a radiology image triage assistant."
+_GATE_USER_PROMPT = (
+    "Is this image a single axial head CT slice (a brain CT)? "
+    "Default to YES: judge only the imaging modality and rough anatomical "
+    "region, not image quality, contrast, or how much brain tissue is "
+    "visible. A dim or low-contrast slice is still YES. A slice near the top "
+    "of the skull (vertex, mostly skull/scalp) or near the skull base "
+    "(sinuses, orbits, mastoid bone) is still YES -- any axial CT slice "
+    "anywhere within the head, however little brain tissue it shows, is "
+    "YES. Answer NO only if you are confident the image is a different body "
+    "part, a different imaging modality (e.g. a photo, X-ray, or MRI), or "
+    "not a medical scan at all. Answer with exactly one word: YES or NO."
+)
+_GATE_MAX_NEW_TOKENS = 8
+_GATE_REFUSAL_MESSAGE = (
+    "This image does not appear to be a head CT slice, so the image-retrieval "
+    "hemorrhage assessment was not performed."
+)
+
 _hf_cache = {}  # model_id -> (processor, model); loaded lazily, kept resident
 _hf_lock = asyncio.Lock()  # one GPU, one generate() at a time
 _retrieval_lock = asyncio.Lock()  # providers.py/biomedclip_embed.py's lazy singletons
@@ -205,14 +233,38 @@ async def _get_image_exemplars(image: Image.Image):
     return exemplars
 
 
+async def _passes_head_ct_gate(processor, model, image: Image.Image) -> bool:
+    """Lightweight modality pre-check for the R2 (image-retrieval) path, which
+    otherwise has no gate at all (its measured 0.575/0.667 F1 used a fully
+    constrained prompt with zero refusal logic, see _R2_SYSTEM_PROMPT above).
+    Caller must already hold _hf_lock and have a loaded processor/model."""
+    inputs = _build_hf_inputs(processor, model, image, _GATE_USER_PROMPT, _GATE_SYSTEM_PROMPT)
+    input_len = inputs["input_ids"].shape[-1]
+
+    def _generate():
+        import torch
+        with torch.inference_mode():
+            return model.generate(**inputs, max_new_tokens=_GATE_MAX_NEW_TOKENS, do_sample=False)
+
+    out = await asyncio.to_thread(_generate)
+    answer = processor.decode(out[0][input_len:], skip_special_tokens=True).strip().upper()
+    return not answer.startswith("NO")
+
+
 async def _call_hf_image(base64_image: str) -> str:
     """Image-retrieval few-shot RAG (R2, opt-in, see config.IMAGE_RETRIEVAL_RAG):
     reproduces the eval-measured R2-B config (constrained prompt, harmonized
-    RSNA pool) -- NOT the demo's free-report format, and does NOT apply the
-    report endpoint's modality-gating system prompt. A non-brain image in
-    this mode will get a constrained yes/no judgment, not a refusal -- that
-    is the documented tradeoff of reproducing the measured config exactly."""
+    RSNA pool) for the substantive judgment itself. A separate modality gate
+    (_passes_head_ct_gate) runs first so this mode doesn't have to choose
+    between reproducing the measured config exactly and refusing non-head-CT
+    input -- the gate is a distinct call, decoupled from the constrained
+    few-shot prompt that produced the measured F1."""
     image = _decode_image(base64_image)
+    async with _hf_lock:
+        processor, model = await _load_hf_model()
+        if not await _passes_head_ct_gate(processor, model, image):
+            return _GATE_REFUSAL_MESSAGE
+
     exemplars = await _get_image_exemplars(image)
 
     async with _hf_lock:
@@ -403,11 +455,19 @@ async def _stream_hf_twostage(base64_image: str, prompt: str, system_prompt: str
 
 
 async def _stream_hf_image(base64_image: str):
-    """串流版 R2(影像檢索 few-shot)。檢索在鎖外做完,串流生成在鎖內,
-    跟 _call_hf_image 同一套檢索/建構邏輯,只是 generate 換成 streamer。"""
+    """串流版 R2(影像檢索 few-shot)。同 _call_hf_image 先過 modality gate
+    (gate 失敗就直接 yield 拒答訊息、不進檢索/生成);gate 通過後,檢索在鎖外
+    做完,串流生成在鎖內,跟 _call_hf_image 同一套檢索/建構邏輯,只是 generate
+    換成 streamer。"""
     from transformers import TextIteratorStreamer
 
     image = _decode_image(base64_image)
+    async with _hf_lock:
+        processor, model = await _load_hf_model()
+        if not await _passes_head_ct_gate(processor, model, image):
+            yield _GATE_REFUSAL_MESSAGE
+            return
+
     exemplars = await _get_image_exemplars(image)
 
     async with _hf_lock:
