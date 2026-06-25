@@ -1,0 +1,18 @@
+# The image only needs python/ + requirements.txt; everything below is dev-
+# machine state that has no business being copied into the build context.
+# Without this, `COPY . .` was pulling in the local .venv (8.2GB on EC2,
+# includes a full CUDA torch install) and data/ (3GB of raw images + eval
+# results), which blew past the EC2 root volume's free space mid-build.
+.venv
+.git
+.github
+.docs
+data
+docs
+__pycache__
+*.pyc
+.env
+.env.*
+.env.bak.*
+*.pem
+*.bundle

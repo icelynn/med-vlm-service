@@ -1,11 +1,16 @@
-# Platform-agnostic packages, pinned to versions verified in this project's
-# local dev venv (2026-06-24). transformers/torch are deliberately NOT pinned
-# here -- the GPU eval/demo environment (EC2 T4) installs a CUDA-specific
-# torch build separately (see python/scripts/requirements-feasibility.txt),
-# and pinning a CPU-resolved version here would misrepresent what actually
-# produced the published evaluation numbers. Re-pin transformers/torch/
-# nibabel from the EC2 venv directly (`pip freeze`) once that instance is
-# reachable -- it was stopped as of this pass.
+# Platform-agnostic packages. Versions below are cross-checked against
+# `pip index versions <pkg>` on EC2 (real PyPI), not just a local `pip freeze`
+# -- an earlier pass here pinned numpy/scikit-learn/scikit-image to versions
+# that don't actually exist on PyPI (local dev venv apparently had future-
+# dated releases not available on the real index), which broke the Docker
+# build outright. Lesson: verify pins against a real package index before
+# trusting `pip freeze` output from any one machine.
+#
+# transformers/torch are deliberately NOT pinned here -- the GPU eval/demo
+# environment installs a CUDA-specific torch build separately (see
+# python/scripts/requirements-feasibility.txt and the Dockerfile), and
+# pinning a CPU-resolved version here would misrepresent what actually
+# produced the published evaluation numbers.
 fastapi==0.136.3
 uvicorn==0.49.0
 httpx==0.28.1
@@ -14,13 +19,14 @@ python-multipart==0.0.32
 chromadb==1.5.9
 transformers  # see note above -- pin from the EC2 venv, not this file
 torch  # see note above -- pin from the EC2 venv, not this file
+accelerate>=0.34  # required for device_map="auto" in feasibility_check.load_model
 sentence-transformers==5.5.1
-numpy==2.4.6
-scikit-learn==1.9.0
+numpy==2.2.6
+scikit-learn==1.7.2
 python-dotenv==1.2.2
 Pillow==12.2.0
 nibabel  # not installed in this dev venv -- pin from the EC2 venv
 kagglehub==1.0.2
 iterative-stratification==0.1.9
 open_clip_torch==3.3.0
-scikit-image==0.26.0
+scikit-image==0.25.2
