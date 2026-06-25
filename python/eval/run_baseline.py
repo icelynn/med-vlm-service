@@ -135,6 +135,13 @@ def main():
                     help="--context image only: draw k random pool exemplars instead "
                          "of retrieving by similarity -- a control to isolate retrieval "
                          "quality from \"having any few-shot exemplar\" (核心難題⑫ §0j)")
+    ap.add_argument("--image-contrastive", action="store_true",
+                    help="--context image only: select 2 high-similarity same-label "
+                         "exemplars + 1 hard negative (visually similar but opposite "
+                         "any_hemorrhage label) instead of plain top-k. Contrastive ICL: "
+                         "the hard negative teaches the model to discriminate rather "
+                         "than rely on superficial visual similarity. k is ignored "
+                         "(always 2+1=3). No test-time label leakage (pool GT only).")
     ap.add_argument("--image-k", type=int, default=3,
                     help="--context image only: number of few-shot exemplars. Default 3 "
                          "matches the published R2-B/R2-C rows; lower only if VRAM forces "
@@ -182,6 +189,8 @@ def main():
         image_context_kwargs["image_pool_dir"] = args.image_pool_dir
     if args.image_random:
         image_context_kwargs["image_random_baseline"] = True
+    if args.image_contrastive:
+        image_context_kwargs["image_contrastive"] = True
     if args.image_k != 3:
         image_context_kwargs["image_k"] = args.image_k
     if args.context == "image":
@@ -189,7 +198,8 @@ def main():
         print(f"[info] context provider=image (per-slice retrieval, built inside the loop)"
               + (f"  index_dir={args.image_index_dir}" if args.image_index_dir else "")
               + (f"  k={args.image_k}" if args.image_k != 3 else "")
-              + ("  RANDOM-BASELINE" if args.image_random else ""))
+              + ("  RANDOM-BASELINE" if args.image_random else "")
+              + ("  CONTRASTIVE" if args.image_contrastive else ""))
     elif args.context == "text-twostage":
         # Context depends on stage-1's per-image findings, so (like "image") it
         # can't be built once before the loop.

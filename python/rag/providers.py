@@ -90,8 +90,44 @@ def _label_text(label_row):
     return f"HEMORRHAGE: yes\nSUBTYPES: {', '.join(present)}"
 
 
+def _select_contrastive_from_sims(sims, labels, k=3):
+    """Given similarity scores (1D array, one per pool image) and pool labels,
+    select contrastive exemplar indices. See retrieve_image_exemplars docstring
+    for the selection logic."""
+    order = np.argsort(-sims)
+    # First image sets the reference label
+    ref_label = labels[order[0]]["any_hemorrhage"]
+    positives = [order[0]]
+    hard_neg = None
+    for idx in order[1:]:
+        if hard_neg is not None and len(positives) >= 2:
+            break
+        if labels[idx]["any_hemorrhage"] == ref_label:
+            if len(positives) < 2:
+                positives.append(idx)
+        else:
+            if hard_neg is None:
+                hard_neg = idx
+    if len(positives) < 2:
+        # Degenerate case: not enough same-label images in the pool.
+        # Fill with next available same-label images (or just take order[1]).
+        for idx in order[1:]:
+            if idx not in positives:
+                positives.append(idx)
+            if len(positives) >= 2:
+                break
+    if hard_neg is None:
+        # No opposite-label image at all — fall back to 3rd nearest.
+        for idx in order:
+            if idx not in positives:
+                hard_neg = idx
+                break
+    return positives[:2] + [hard_neg]
+
+
 def retrieve_image_exemplars(image_path, k=3, index_dir=IMAGE_INDEX_DIR,
-                             pool_images_dir=POOL_IMAGES_DIR, random_baseline=False):
+                             pool_images_dir=POOL_IMAGES_DIR, random_baseline=False,
+                             contrastive=False):
     """Embed the CURRENT query slice with BiomedCLIP, retrieve the top-k
     visually-nearest pool exemplars, and return them as a list of
     (image_path, label_text) pairs in similarity order.
@@ -106,12 +142,24 @@ def retrieve_image_exemplars(image_path, k=3, index_dir=IMAGE_INDEX_DIR,
     from image_path, so reruns/resumes are reproducible). This isolates
     "does the model benefit from any few-shot exemplar at all" (format
     demonstration) from "does it benefit from a VISUALLY RELEVANT one" --
-    see 核心難題⑫ §0j."""
+    see 核心難題⑫ §0j.
+
+    contrastive=True selects 2 high-similarity same-label exemplars + 1 hard
+    negative (visually similar but opposite any_hemorrhage label), instead of
+    plain top-k. The hard negative teaches the model to discriminate rather
+    than rely on superficial visual similarity. k is ignored (always 2+1=3).
+    No test-time label leakage: selection uses pool GT labels only, not the
+    query's GT."""
     embeddings, labels = _get_image_index(index_dir)
     if random_baseline:
         import random as _random
         rng = _random.Random(str(image_path))
         top = rng.sample(range(len(labels)), min(k, len(labels)))
+    elif contrastive:
+        from biomedclip_embed import embed_image
+        query_emb = embed_image(image_path)
+        sims = embeddings @ query_emb
+        top = _select_contrastive_from_sims(sims, labels, k=k)
     else:
         from biomedclip_embed import embed_image
         query_emb = embed_image(image_path)
@@ -122,7 +170,8 @@ def retrieve_image_exemplars(image_path, k=3, index_dir=IMAGE_INDEX_DIR,
 
 def build_context(provider, query=DEFAULT_QUERY, image_path=None,
                   image_index_dir=IMAGE_INDEX_DIR, image_pool_dir=POOL_IMAGES_DIR,
-                  image_random_baseline=False, image_k=3, text_k=5):
+                  image_random_baseline=False, image_contrastive=False,
+                  image_k=3, text_k=5):
     if provider == "none":
         return ""
     if provider == "text":
@@ -138,5 +187,6 @@ def build_context(provider, query=DEFAULT_QUERY, image_path=None,
             raise ValueError("provider='image' needs image_path (retrieval is per-slice)")
         return retrieve_image_exemplars(image_path, k=image_k, index_dir=image_index_dir,
                                         pool_images_dir=image_pool_dir,
-                                        random_baseline=image_random_baseline)
+                                        random_baseline=image_random_baseline,
+                                        contrastive=image_contrastive)
     raise ValueError(f"unknown context provider: {provider!r}")
