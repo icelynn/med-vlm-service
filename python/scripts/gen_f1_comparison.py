@@ -13,8 +13,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # (label, json path, color, is_winner, p_value_annotation or None)
-GREEN, LIGHT_GREEN, PURPLE, GRAY, BLUE, MAGENTA = (
+GREEN, LIGHT_GREEN, PURPLE, GRAY, BLUE, MAGENTA, ORANGE, LIGHT_PURPLE = (
     "#16A34A", "#86EFAC", "#A78BFA", "#9CA3AF", "#60A5FA", "#C026D3",
+    "#F97316", "#D8B4FE",
 )
 CT_ICH_BARS = [
     ("No-RAG", "data/ct_ich/baseline_summary.json", GRAY, False, None),
@@ -23,22 +24,28 @@ CT_ICH_BARS = [
     ("Image-\nRetrieval", "data/ct_ich/summary_imageretrieval.json", GREEN, True, "p&lt;0.0001"),
     ("Random\nControl", "data/ct_ich/summary_imageretrieval_random.json", LIGHT_GREEN, False, None),
     ("MedGemma+\nImg-Retr.", "data/ct_ich/summary_medgemma_imageretrieval.json", MAGENTA, True, "p&lt;0.0001"),
+    ("MedGemma+\nRandom", "data/ct_ich/summary_medgemma_random.json", LIGHT_PURPLE, False, None),
+    ("Qwen+\nContrast.", "data/ct_ich/summary_qwen_contrastive.json", ORANGE, False, None),
+    ("MedGemma+\nContrast.", "data/ct_ich/summary_medgemma_contrastive.json", "#E879F9", False, None),
 ]
 RSNA_BARS = [
     ("No-RAG", "data/rsna/summary.json", GRAY, False, None),
     ("Text-RAG", "data/rsna/summary_rag.json", BLUE, False, None),
     ("MedGemma", "data/rsna/summary_medgemma.json", PURPLE, False, None),
     ("Image-\nRetrieval", "data/rsna/summary_imageretrieval_128matched.json", GREEN, True, "p&lt;0.0001"),
-    ("Random\nControl", "data/rsna/summary_imageretrieval_random.json", LIGHT_GREEN, False, None),
+    ("Random\nControl", "data/rsna/summary_imageretrieval_128matched_random.json", LIGHT_GREEN, False, None),
     ("MedGemma+\nImg-Retr.", "data/rsna/summary_medgemma_imageretrieval.json", MAGENTA, True, "p&lt;0.0001"),
+    ("MedGemma+\nRandom", "data/rsna/summary_medgemma_random.json", LIGHT_PURPLE, False, None),
+    ("Qwen+\nContrast.", "data/rsna/summary_qwen_contrastive.json", ORANGE, False, None),
+    ("MedGemma+\nContrast.", "data/rsna/summary_medgemma_contrastive.json", "#E879F9", False, None),
 ]
 
 # Layout constants
 CHART_TOP = 100      # y pixel for F1=Y_MAX (top gridline)
 CHART_BOTTOM = 380    # y pixel for F1=0.0
 Y_MAX = 1.0
-BAR_W = 46
-BAR_GAP = 16
+BAR_W = 38
+BAR_GAP = 12
 PANEL_GAP = 40
 LEFT_MARGIN = 50
 
