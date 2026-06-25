@@ -122,7 +122,7 @@ def retrieve_image_exemplars(image_path, k=3, index_dir=IMAGE_INDEX_DIR,
 
 def build_context(provider, query=DEFAULT_QUERY, image_path=None,
                   image_index_dir=IMAGE_INDEX_DIR, image_pool_dir=POOL_IMAGES_DIR,
-                  image_random_baseline=False, text_k=5):
+                  image_random_baseline=False, image_k=3, text_k=5):
     if provider == "none":
         return ""
     if provider == "text":
@@ -136,7 +136,7 @@ def build_context(provider, query=DEFAULT_QUERY, image_path=None,
     if provider == "image":
         if image_path is None:
             raise ValueError("provider='image' needs image_path (retrieval is per-slice)")
-        return retrieve_image_exemplars(image_path, index_dir=image_index_dir,
+        return retrieve_image_exemplars(image_path, k=image_k, index_dir=image_index_dir,
                                         pool_images_dir=image_pool_dir,
                                         random_baseline=image_random_baseline)
     raise ValueError(f"unknown context provider: {provider!r}")
