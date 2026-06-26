@@ -56,3 +56,13 @@ data/comparison.md
 
 # Defensive test images (personal photos / downloaded medical samples) — never commit
 data/test_images/defensive/
+
+# Node deps for ad-hoc local scripts (no package.json checked in -- not reproducible anyway)
+node_modules/
+
+# Personal/ad-hoc EC2 batch-run driver, not a maintained reproducibility artifact
+# (the actual reproduction commands are in README's "Reproduce any row")
+run_experiments_2_3.sh
+
+# Claude Code session-local state
+.hermes/
