@@ -43,6 +43,12 @@ RUNS = [
     ("RSNA",   "Image-Retrieval (R2-C, res+intensity, random control)", "rsna/summary_imageretrieval_128harmonized_random.json"),
     ("RSNA",   "Image-Retrieval (R2-C, pool@96px)",         "rsna/summary_imageretrieval_96.json"),
     ("RSNA",   "Image-Retrieval (R2-C, pool@192px)",        "rsna/summary_imageretrieval_192.json"),
+    ("CT-ICH", "MedGemma + Random",                         "ct_ich/summary_medgemma_random.json"),
+    ("RSNA",   "MedGemma + Random",                         "rsna/summary_medgemma_random.json"),
+    ("CT-ICH", "Qwen3-VL + Contrastive ICL",                 "ct_ich/summary_qwen_contrastive.json"),
+    ("RSNA",   "Qwen3-VL + Contrastive ICL",                 "rsna/summary_qwen_contrastive.json"),
+    ("CT-ICH", "MedGemma + Contrastive ICL",                 "ct_ich/summary_medgemma_contrastive.json"),
+    ("RSNA",   "MedGemma + Contrastive ICL",                 "rsna/summary_medgemma_contrastive.json"),
 ]
 
 
