@@ -1,0 +1,90 @@
+<svg viewBox="0 0 776 477" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <rect x="0" y="0" width="776" height="477" rx="14" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+  <text x="388.0" y="26" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">Does retrieval fix the perception gap?</text>
+  <rect x="258.0" y="38" width="14" height="14" rx="3" fill="#3B82F6"/>
+  <text x="276.0" y="49" font-size="12" fill="#374151">Qwen3-VL-4B</text>
+  <rect x="378.0" y="38" width="14" height="14" rx="3" fill="#16A34A"/>
+  <text x="396.0" y="49" font-size="12" fill="#374151">MedGemma-4B</text>
+  <text x="388.0" y="70" text-anchor="middle" font-size="12" fill="#6B7280">bars = point estimate · whiskers = 95% bootstrap CI (2000 resamples)</text>
+  <line x1="50" y1="347.0" x2="756" y2="347.0" stroke="#9CA3AF" stroke-width="1"/>
+  <text x="45" y="351.0" text-anchor="end" font-size="12" fill="#6B7280">0.0</text>
+  <line x1="50" y1="301.0" x2="756" y2="301.0" stroke="#E5E7EB" stroke-width="1"/>
+  <text x="45" y="305.0" text-anchor="end" font-size="12" fill="#6B7280">0.2</text>
+  <line x1="50" y1="255.0" x2="756" y2="255.0" stroke="#E5E7EB" stroke-width="1"/>
+  <text x="45" y="259.0" text-anchor="end" font-size="12" fill="#6B7280">0.4</text>
+  <line x1="50" y1="209.0" x2="756" y2="209.0" stroke="#E5E7EB" stroke-width="1"/>
+  <text x="45" y="213.0" text-anchor="end" font-size="12" fill="#6B7280">0.6</text>
+  <line x1="50" y1="163.0" x2="756" y2="163.0" stroke="#E5E7EB" stroke-width="1"/>
+  <text x="45" y="167.0" text-anchor="end" font-size="12" fill="#6B7280">0.8</text>
+  <line x1="50" y1="117.0" x2="756" y2="117.0" stroke="#E5E7EB" stroke-width="1"/>
+  <text x="45" y="121.0" text-anchor="end" font-size="12" fill="#6B7280">1.0</text>
+  <text x="20" y="232" text-anchor="middle" font-size="13" fill="#374151" transform="rotate(-90 20 232)">Any-hemorrhage F1</text>
+  <text x="210.0" y="105" text-anchor="middle" font-size="14" font-weight="700" fill="#111827">CT-ICH</text>
+  <text x="586.0" y="105" text-anchor="middle" font-size="14" font-weight="700" fill="#111827">RSNA</text>
+  <line x1="398.0" y1="117" x2="398.0" y2="347" stroke="#E5E7EB" stroke-width="1.5" stroke-dasharray="5,4"/>
+  <text x="68.0" y="339" text-anchor="middle" font-size="11" fill="#374151">0.000</text>
+  <rect x="92" y="291.4" width="36" height="55.6" fill="#16A34A" rx="3"/>
+  <line x1="110.0" y1="314.1" x2="110.0" y2="267.7" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="105.0" y1="314.1" x2="115.0" y2="314.1" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="105.0" y1="267.7" x2="115.0" y2="267.7" stroke="#1F2937" stroke-width="1.3"/>
+  <text x="110.0" y="260.7" text-anchor="middle" font-size="11" fill="#111827">0.242</text>
+  <text x="186.0" y="339" text-anchor="middle" font-size="11" fill="#374151">0.000</text>
+  <rect x="210" y="181.7" width="36" height="165.3" fill="#16A34A" rx="3"/>
+  <line x1="228.0" y1="199.5" x2="228.0" y2="165.4" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="223.0" y1="199.5" x2="233.0" y2="199.5" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="223.0" y1="165.4" x2="233.0" y2="165.4" stroke="#1F2937" stroke-width="1.3"/>
+  <text x="228.0" y="158.4" text-anchor="middle" font-size="11" font-weight="700" fill="#111827">0.719</text>
+  <text x="228.0" y="144.4" text-anchor="middle" font-size="10" font-weight="700" fill="#16A34A">p&lt;0.0001</text>
+  <rect x="286" y="214.7" width="36" height="132.3" fill="#3B82F6" rx="3"/>
+  <line x1="304.0" y1="236.9" x2="304.0" y2="194.6" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="299.0" y1="236.9" x2="309.0" y2="236.9" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="299.0" y1="194.6" x2="309.0" y2="194.6" stroke="#1F2937" stroke-width="1.3"/>
+  <text x="304.0" y="187.6" text-anchor="middle" font-size="11" font-weight="700" fill="#111827">0.575</text>
+  <text x="304.0" y="173.6" text-anchor="middle" font-size="10" font-weight="700" fill="#3B82F6">p&lt;0.0001</text>
+  <rect x="328" y="153.9" width="36" height="193.1" fill="#16A34A" rx="3"/>
+  <line x1="346.0" y1="166.6" x2="346.0" y2="142.6" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="341.0" y1="166.6" x2="351.0" y2="166.6" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="341.0" y1="142.6" x2="351.0" y2="142.6" stroke="#1F2937" stroke-width="1.3"/>
+  <text x="346.0" y="135.6" text-anchor="middle" font-size="11" font-weight="700" fill="#111827">0.840</text>
+  <text x="346.0" y="121.6" text-anchor="middle" font-size="10" font-weight="700" fill="#16A34A">p&lt;0.0001</text>
+  <text x="89.0" y="367" text-anchor="middle" font-size="12" fill="#374151">Zero-shot</text>
+  <text x="207.0" y="367" text-anchor="middle" font-size="12" fill="#374151">Text-RAG</text>
+  <text x="325.0" y="367" text-anchor="middle" font-size="12" fill="#374151">High-sim</text>
+  <rect x="426" y="310.7" width="36" height="36.3" fill="#3B82F6" rx="3"/>
+  <line x1="444.0" y1="330.1" x2="444.0" y2="289.0" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="439.0" y1="330.1" x2="449.0" y2="330.1" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="439.0" y1="289.0" x2="449.0" y2="289.0" stroke="#1F2937" stroke-width="1.3"/>
+  <text x="444.0" y="282.0" text-anchor="middle" font-size="11" fill="#111827">0.158</text>
+  <rect x="468" y="216.5" width="36" height="130.5" fill="#16A34A" rx="3"/>
+  <line x1="486.0" y1="240.4" x2="486.0" y2="195.7" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="481.0" y1="240.4" x2="491.0" y2="240.4" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="481.0" y1="195.7" x2="491.0" y2="195.7" stroke="#1F2937" stroke-width="1.3"/>
+  <text x="486.0" y="188.7" text-anchor="middle" font-size="11" fill="#111827">0.568</text>
+  <rect x="544" y="300.6" width="36" height="46.4" fill="#3B82F6" rx="3"/>
+  <line x1="562.0" y1="322.4" x2="562.0" y2="278.6" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="557.0" y1="322.4" x2="567.0" y2="322.4" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="557.0" y1="278.6" x2="567.0" y2="278.6" stroke="#1F2937" stroke-width="1.3"/>
+  <text x="562.0" y="271.6" text-anchor="middle" font-size="11" fill="#111827">0.202</text>
+  <rect x="586" y="164.9" width="36" height="182.1" fill="#16A34A" rx="3"/>
+  <line x1="604.0" y1="180.4" x2="604.0" y2="151.5" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="599.0" y1="180.4" x2="609.0" y2="180.4" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="599.0" y1="151.5" x2="609.0" y2="151.5" stroke="#1F2937" stroke-width="1.3"/>
+  <text x="604.0" y="144.5" text-anchor="middle" font-size="11" font-weight="700" fill="#111827">0.792</text>
+  <text x="604.0" y="130.5" text-anchor="middle" font-size="10" font-weight="700" fill="#16A34A">p&lt;0.0001</text>
+  <rect x="662" y="193.7" width="36" height="153.3" fill="#3B82F6" rx="3"/>
+  <line x1="680.0" y1="214.7" x2="680.0" y2="175.7" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="675.0" y1="214.7" x2="685.0" y2="214.7" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="675.0" y1="175.7" x2="685.0" y2="175.7" stroke="#1F2937" stroke-width="1.3"/>
+  <text x="680.0" y="168.7" text-anchor="middle" font-size="11" font-weight="700" fill="#111827">0.667</text>
+  <text x="680.0" y="154.7" text-anchor="middle" font-size="10" font-weight="700" fill="#3B82F6">p&lt;0.0001</text>
+  <rect x="704" y="149.9" width="36" height="197.1" fill="#16A34A" rx="3"/>
+  <line x1="722.0" y1="162.5" x2="722.0" y2="139.3" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="717.0" y1="162.5" x2="727.0" y2="162.5" stroke="#1F2937" stroke-width="1.3"/>
+  <line x1="717.0" y1="139.3" x2="727.0" y2="139.3" stroke="#1F2937" stroke-width="1.3"/>
+  <text x="722.0" y="132.3" text-anchor="middle" font-size="11" font-weight="700" fill="#111827">0.857</text>
+  <text x="722.0" y="118.3" text-anchor="middle" font-size="10" font-weight="700" fill="#16A34A">p&lt;0.0001</text>
+  <text x="465.0" y="367" text-anchor="middle" font-size="12" fill="#374151">Zero-shot</text>
+  <text x="583.0" y="367" text-anchor="middle" font-size="12" fill="#374151">Text-RAG</text>
+  <text x="701.0" y="367" text-anchor="middle" font-size="12" fill="#374151">High-sim</text>
+  <text x="388.0" y="449" text-anchor="middle" font-size="11" fill="#9CA3AF"><tspan x="388.0" dy="0">MedGemma+Text-RAG (p&lt;0.0001 vs. MedGemma zero-shot, both datasets) </tspan><tspan x="388.0" dy="14">text knowledge helps a model with some baseline perception, unlike Qwen3-VL's floor. See Honest limitations.</tspan></text>
+</svg>
