@@ -142,6 +142,25 @@ def main():
                          "the hard negative teaches the model to discriminate rather "
                          "than rely on superficial visual similarity. k is ignored "
                          "(always 2+1=3). No test-time label leakage (pool GT only).")
+    ap.add_argument("--contrastive-neg-position", default="last",
+                    choices=["last", "first", "middle"],
+                    help="--image-contrastive only: where the hard negative sits "
+                         "in the few-shot order. Default 'last' matches the "
+                         "published R2 contrastive rows (recency-bias ablation, "
+                         "Contrastive_ICL機制實驗設計.md Option 1)")
+    ap.add_argument("--contrastive-pos-count", type=int, default=2,
+                    help="--image-contrastive only: number of positive (same-label) "
+                         "exemplars. Default 2 matches published rows "
+                         "(Contrastive_ICL機制實驗設計.md Option 3)")
+    ap.add_argument("--contrastive-neg-count", type=int, default=1,
+                    help="--image-contrastive only: number of hard-negative "
+                         "(opposite-label) exemplars. Default 1 matches published rows "
+                         "(Contrastive_ICL機制實驗設計.md Option 3)")
+    ap.add_argument("--contrastive-random-neg", action="store_true",
+                    help="--image-contrastive only: draw the negative(s) uniformly "
+                         "at random from opposite-label pool images instead of the "
+                         "most visually similar one (Contrastive_ICL機制實驗設計.md "
+                         "Option 4 -- soft-negative ablation)")
     ap.add_argument("--image-k", type=int, default=3,
                     help="--context image only: number of few-shot exemplars. Default 3 "
                          "matches the published R2-B/R2-C rows; lower only if VRAM forces "
@@ -191,6 +210,14 @@ def main():
         image_context_kwargs["image_random_baseline"] = True
     if args.image_contrastive:
         image_context_kwargs["image_contrastive"] = True
+    if args.contrastive_neg_position != "last":
+        image_context_kwargs["image_contrastive_neg_position"] = args.contrastive_neg_position
+    if args.contrastive_pos_count != 2:
+        image_context_kwargs["image_contrastive_n_pos"] = args.contrastive_pos_count
+    if args.contrastive_neg_count != 1:
+        image_context_kwargs["image_contrastive_n_neg"] = args.contrastive_neg_count
+    if args.contrastive_random_neg:
+        image_context_kwargs["image_contrastive_random_neg"] = True
     if args.image_k != 3:
         image_context_kwargs["image_k"] = args.image_k
     if args.context == "image":
@@ -199,7 +226,12 @@ def main():
               + (f"  index_dir={args.image_index_dir}" if args.image_index_dir else "")
               + (f"  k={args.image_k}" if args.image_k != 3 else "")
               + ("  RANDOM-BASELINE" if args.image_random else "")
-              + ("  CONTRASTIVE" if args.image_contrastive else ""))
+              + ("  CONTRASTIVE" if args.image_contrastive else "")
+              + (f"  neg_position={args.contrastive_neg_position}"
+                 if args.contrastive_neg_position != "last" else "")
+              + (f"  pos={args.contrastive_pos_count}/neg={args.contrastive_neg_count}"
+                 if (args.contrastive_pos_count, args.contrastive_neg_count) != (2, 1) else "")
+              + ("  RANDOM-NEG" if args.contrastive_random_neg else ""))
     elif args.context == "text-twostage":
         # Context depends on stage-1's per-image findings, so (like "image") it
         # can't be built once before the loop.

@@ -90,44 +90,76 @@ def _label_text(label_row):
     return f"HEMORRHAGE: yes\nSUBTYPES: {', '.join(present)}"
 
 
-def _select_contrastive_from_sims(sims, labels, k=3):
+def _select_contrastive_from_sims(sims, labels, k=3, neg_position="last",
+                                  n_pos=2, n_neg=1, random_neg=False, seed=None):
     """Given similarity scores (1D array, one per pool image) and pool labels,
     select contrastive exemplar indices. See retrieve_image_exemplars docstring
-    for the selection logic."""
+    for the selection logic.
+
+    neg_position controls where the hard negative sits in the returned order
+    (Contrastive_ICL機制實驗設計.md Option 1 — recency-bias ablation):
+    'last' (default, current published behaviour) | 'first' | 'middle'.
+    Only applies to the default n_pos=2/n_neg=1 case -- with other counts
+    (Option 3 -- presence-vs-count ablation) exemplars are just returned
+    positives-then-negatives, ordering isn't the variable under test there.
+
+    n_pos/n_neg override the default 2 positives + 1 hard negative.
+
+    random_neg=True (Option 4 -- soft-negative ablation) draws the negative(s)
+    uniformly at random from all opposite-label pool images instead of the
+    most visually similar one -- isolates "negative exists" from "negative is
+    visually confusing". seed makes the draw reproducible (pass the query
+    image_path)."""
     order = np.argsort(-sims)
     # First image sets the reference label
     ref_label = labels[order[0]]["any_hemorrhage"]
     positives = [order[0]]
-    hard_neg = None
+    negs = []
     for idx in order[1:]:
-        if hard_neg is not None and len(positives) >= 2:
+        if len(positives) >= n_pos and (len(negs) >= n_neg or random_neg):
             break
         if labels[idx]["any_hemorrhage"] == ref_label:
-            if len(positives) < 2:
+            if len(positives) < n_pos:
                 positives.append(idx)
-        else:
-            if hard_neg is None:
-                hard_neg = idx
-    if len(positives) < 2:
+        elif not random_neg:
+            if len(negs) < n_neg:
+                negs.append(idx)
+    if len(positives) < n_pos:
         # Degenerate case: not enough same-label images in the pool.
-        # Fill with next available same-label images (or just take order[1]).
         for idx in order[1:]:
-            if idx not in positives:
+            if idx not in positives and idx not in negs:
                 positives.append(idx)
-            if len(positives) >= 2:
+            if len(positives) >= n_pos:
                 break
-    if hard_neg is None:
-        # No opposite-label image at all — fall back to 3rd nearest.
+    if random_neg and n_neg > 0:
+        import random as _random
+        opposite = [i for i in range(len(labels))
+                   if labels[i]["any_hemorrhage"] != ref_label and i not in positives]
+        rng = _random.Random(seed)
+        negs = rng.sample(opposite, min(n_neg, len(opposite)))
+    if len(negs) < n_neg and n_neg > 0:
+        # No (more) opposite-label images at all -- fall back to next nearest.
         for idx in order:
-            if idx not in positives:
-                hard_neg = idx
+            if idx not in positives and idx not in negs:
+                negs.append(idx)
+            if len(negs) >= n_neg:
                 break
-    return positives[:2] + [hard_neg]
+    pos, negs = positives[:n_pos], negs[:n_neg]
+    if n_pos == 2 and n_neg == 1:
+        hard_neg = negs[0]
+        if neg_position == "first":
+            return [hard_neg] + pos
+        if neg_position == "middle":
+            return [pos[0], hard_neg, pos[1]]
+        return pos + [hard_neg]  # "last", current published behaviour
+    return pos + negs
 
 
 def retrieve_image_exemplars(image_path, k=3, index_dir=IMAGE_INDEX_DIR,
                              pool_images_dir=POOL_IMAGES_DIR, random_baseline=False,
-                             contrastive=False):
+                             contrastive=False, contrastive_neg_position="last",
+                             contrastive_n_pos=2, contrastive_n_neg=1,
+                             contrastive_random_neg=False):
     """Embed the CURRENT query slice with BiomedCLIP, retrieve the top-k
     visually-nearest pool exemplars, and return them as a list of
     (image_path, label_text) pairs in similarity order.
@@ -159,7 +191,11 @@ def retrieve_image_exemplars(image_path, k=3, index_dir=IMAGE_INDEX_DIR,
         from biomedclip_embed import embed_image
         query_emb = embed_image(image_path)
         sims = embeddings @ query_emb
-        top = _select_contrastive_from_sims(sims, labels, k=k)
+        top = _select_contrastive_from_sims(sims, labels, k=k,
+                                            neg_position=contrastive_neg_position,
+                                            n_pos=contrastive_n_pos, n_neg=contrastive_n_neg,
+                                            random_neg=contrastive_random_neg,
+                                            seed=str(image_path))
     else:
         from biomedclip_embed import embed_image
         query_emb = embed_image(image_path)
@@ -171,6 +207,9 @@ def retrieve_image_exemplars(image_path, k=3, index_dir=IMAGE_INDEX_DIR,
 def build_context(provider, query=DEFAULT_QUERY, image_path=None,
                   image_index_dir=IMAGE_INDEX_DIR, image_pool_dir=POOL_IMAGES_DIR,
                   image_random_baseline=False, image_contrastive=False,
+                  image_contrastive_neg_position="last",
+                  image_contrastive_n_pos=2, image_contrastive_n_neg=1,
+                  image_contrastive_random_neg=False,
                   image_k=3, text_k=5):
     if provider == "none":
         return ""
@@ -188,5 +227,9 @@ def build_context(provider, query=DEFAULT_QUERY, image_path=None,
         return retrieve_image_exemplars(image_path, k=image_k, index_dir=image_index_dir,
                                         pool_images_dir=image_pool_dir,
                                         random_baseline=image_random_baseline,
-                                        contrastive=image_contrastive)
+                                        contrastive=image_contrastive,
+                                        contrastive_neg_position=image_contrastive_neg_position,
+                                        contrastive_n_pos=image_contrastive_n_pos,
+                                        contrastive_n_neg=image_contrastive_n_neg,
+                                        contrastive_random_neg=image_contrastive_random_neg)
     raise ValueError(f"unknown context provider: {provider!r}")
