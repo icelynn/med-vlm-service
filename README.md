@@ -56,9 +56,15 @@ Two opt-in, mutually-exclusive flags (`-F "image_retrieval=true"` / `-F "two_sta
 | Asset | Status | What it shows |
 |---|---|---|
 | F1 comparison chart | ✅ above | Headline result, all rows, with 95% CI |
-| SSE streaming demo | ⬜ todo | `/analyze/stream` returning a report token-by-token, ending on `[DONE]` |
-| Image-retrieval mode | ⬜ todo | `/analyze` with `image_retrieval=true`, showing the constrained judgment + the gate refusing a non-head-CT input |
-| Container boot | ⬜ todo | `docker build` → `docker run` → first request |
+| SSE streaming demo | ✅ `docs/media/sse_streaming.gif` | `/analyze/stream` returning a report token-by-token, ending on `[DONE]` |
+| Image-retrieval mode | ✅ `docs/media/image_retrieval_pass_and_refuse.png` | `/analyze` with `image_retrieval=true`, showing the constrained judgment + the gate refusing a non-head-CT input |
+| Container boot | ✅ `docs/media/container_boot.png` | `docker build` → `docker run` → first request |
+
+*All three captured from a real EC2 run (2026-06-26) — genuine `docker build`/`docker run`/`curl` output, not staged. Rendered as terminal-style images/GIF from the captured text rather than a literal screen recording (no GUI capture available in this environment); the content is real, the presentation is synthesized.*
+
+<p align="center"><img src="docs/media/container_boot.png" alt="docker build, docker run, and the first /analyze request succeeding on EC2" width="85%"></p>
+<p align="center"><img src="docs/media/sse_streaming.gif" alt="Token-by-token SSE stream from /analyze/stream" width="85%"></p>
+<p align="center"><img src="docs/media/image_retrieval_pass_and_refuse.png" alt="image_retrieval=true: constrained judgment on a head CT vs. the gate refusing a non-head-CT image" width="85%"></p>
 
 </details>
 
