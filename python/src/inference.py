@@ -43,11 +43,10 @@ _R2_MAX_NEW_TOKENS = 64  # matches run_baseline.py: the constrained answer is sh
 # above have zero refusal logic by design, since that's the exact configuration
 # that was measured at F1=0.575/0.667). This is a SEPARATE, minimal generate call,
 # not a canned escape-hatch folded into the same prompt as the substantive task --
-# core-challenges #9 found that a canned-tag refusal channel (`[Error]`) inside the
-# *same* generation over-triggers even on valid images. A plain yes/no question in
-# its own call doesn't carry that failure mode, but to stay safe it still fails
-# OPEN (treats anything not starting with "NO" as a pass) rather than blocking on
-# an ambiguous answer.
+# a canned-tag refusal channel (`[Error]`) inside the *same* generation was found to
+# over-trigger even on valid images. A plain yes/no question in its own call doesn't
+# carry that failure mode, but to stay safe it still fails OPEN (treats anything not
+# starting with "NO" as a pass) rather than blocking on an ambiguous answer.
 _GATE_SYSTEM_PROMPT = "You are a radiology image triage assistant."
 _GATE_USER_PROMPT = (
     "Is this image a single axial head CT slice (a brain CT)? "
@@ -78,22 +77,25 @@ _retrieval_lock = asyncio.Lock()  # providers.py/biomedclip_embed.py's lazy sing
 
 
 def _decode_image(base64_image: str) -> Image.Image:
-    """Base64 → PIL,長邊縮到 896px 避免 vision-token 爆 VRAM。"""
+    """Base64 -> PIL, long edge capped to 896px to avoid a vision-token VRAM blowup."""
     image = Image.open(BytesIO(base64.b64decode(base64_image))).convert("RGB")
     image.thumbnail((_HF_MAX_IMAGE_SIZE, _HF_MAX_IMAGE_SIZE), Image.Resampling.LANCZOS)
     return image
 
 
 def _strip_thinking(text: str) -> str:
-    """防禦性處理：若 checkpoint 真的吐出 <think>...</think>,濾掉只留最終報告。"""
+    """Defensive: strip <think>...</think> if the checkpoint actually emits it,
+    keeping only the final report."""
     return _THINK_TAG_RE.sub("", text, count=1).strip()
 
 
 async def _load_hf_model():
-    """惰性載入目前 MODEL_ROLE 對應的 HF 模型,常駐記憶體（同一個 process 只载一次）。
+    """Lazily load the HF model for the current MODEL_ROLE, kept resident
+    (loaded once per process).
 
-    torch/transformers 在這裡才 import,讓 test/dev 等不需要 HF 的環境不用付這個 import 成本
-    (本機量測 torch+transformers import ≈2.6s)。重用 feasibility_check.py 已驗證過的 T4 載入邏輯。
+    torch/transformers are imported here so environments that don't need HF
+    (e.g. test/dev) don't pay that import cost (measured locally at ~2.6s).
+    Reuses feasibility_check.py's already-validated T4 loading logic.
     """
     model_id = config.model
     if model_id not in _hf_cache:
@@ -109,7 +111,7 @@ async def _load_hf_model():
 
 
 def _build_hf_inputs(processor, model, image: Image.Image, prompt: str, system_prompt: str):
-    """跟 feasibility_check.run_inference 相同的 chat-template 邏輯（兩個模型通用）。"""
+    """Same chat-template logic as feasibility_check.run_inference (shared by both models)."""
     messages = [
         {"role": "system", "content": [{"type": "text", "text": system_prompt}]},
         {"role": "user", "content": [
@@ -124,7 +126,8 @@ def _build_hf_inputs(processor, model, image: Image.Image, prompt: str, system_p
 
 
 async def _call_hf(base64_image: str, prompt: str, system_prompt: str) -> str:
-    """demo 環境：直接用 HF transformers 跑（重用 eval 已驗證過的載入/推論邏輯）"""
+    """demo environment: runs directly via HF transformers (reuses eval's
+    validated load/inference logic)."""
     image = _decode_image(base64_image)
     async with _hf_lock:
         processor, model = await _load_hf_model()
@@ -285,12 +288,12 @@ async def _call_hf_image(base64_image: str) -> str:
 
 
 async def _call_openrouter(base64_image: str, prompt: str, system_prompt: str) -> str:
-    """test 環境：呼叫 OpenRouter 雲端 API"""
+    """test environment: calls the OpenRouter cloud API."""
     headers = {
         "Authorization": f"Bearer {config.OPENROUTER_API_KEY}",
         "Content-Type": "application/json"
     }
-    # OpenRouter 的多模態 Vision 格式
+    # OpenRouter's multimodal vision format
     payload = {
         "model": config.model,
         "messages": [
@@ -310,7 +313,7 @@ async def _call_openrouter(base64_image: str, prompt: str, system_prompt: str) -
         ]
     }
 
-    # 針對 429/5xx 等暫時性錯誤，採取指數退避重試 (最多 3 次)
+    # Exponential backoff retry for transient 429/5xx errors (up to 3 attempts)
     max_retries = 3
     response = None
     for attempt in range(1, max_retries + 1):
@@ -322,50 +325,51 @@ async def _call_openrouter(base64_image: str, prompt: str, system_prompt: str) -
                 timeout=60.0
             )
 
-        # 成功 → 跳出重試迴圈
+        # Success -> break out of the retry loop
         if response.status_code == 200:
             break
 
-        # 429/5xx → 暫時性錯誤，可重試
+        # 429/5xx -> transient error, retryable
         if response.status_code in (429, 500, 502, 503, 504) and attempt < max_retries:
             wait_seconds = 2 ** attempt  # 2s, 4s, 8s
-            print(f"[警告] OpenRouter 暫時性錯誤 (HTTP {response.status_code})，"
-                  f"第 {attempt}/{max_retries} 次重試，等待 {wait_seconds}s ...")
+            print(f"[warning] OpenRouter transient error (HTTP {response.status_code}), "
+                  f"retry {attempt}/{max_retries}, waiting {wait_seconds}s ...")
             await asyncio.sleep(wait_seconds)
             continue
 
-        # 不可重試的錯誤 (例如 400) 或已達最大重試次數
+        # Non-retryable error (e.g. 400) or max retries reached
         error_detail = response.text
-        raise Exception(f"OpenRouter API 錯誤 (HTTP {response.status_code}): {error_detail}")
+        raise Exception(f"OpenRouter API error (HTTP {response.status_code}): {error_detail}")
 
     result = response.json()
 
-    # 檢查回應格式
+    # Validate response shape
     if "choices" not in result:
-        raise Exception(f"OpenRouter API 回應格式異常，缺少 'choices' 欄位: {result}")
+        raise Exception(f"OpenRouter API response missing 'choices' field: {result}")
 
     return result["choices"][0]["message"]["content"]
 
 
 def _resolve_service_backend() -> str:
-    """回傳目前 ENV 對應的服務後端，並擋掉不該由此 proxy 服務的環境。"""
+    """Return the service backend for the current ENV, rejecting environments
+    this proxy shouldn't serve."""
     if config.ENV == "dev":
         raise ValueError(
-            "[錯誤] ENV=dev 是 HF+transformers 評估管線（請用 run_baseline.py），"
-            "本服務只服務 test(OpenRouter) 與 demo(HF transformers)。"
+            "[error] ENV=dev is the HF+transformers eval pipeline (use run_baseline.py); "
+            "this service only serves test (OpenRouter) and demo (HF transformers)."
         )
     backend = config.backend
     if backend not in ("openrouter", "hf"):
-        raise ValueError(f"[錯誤] 不支援的 ENV 設定: {config.ENV}")
+        raise ValueError(f"[error] unsupported ENV setting: {config.ENV}")
     if config.model is None:
         raise ValueError(
-            f"[錯誤] 角色 MODEL_ROLE={config.MODEL_ROLE} 在 {backend} 後端上沒有可用模型"
-            "（例如 MedGemma 未上架 OpenRouter）。請改用 demo(HF transformers) 或 dev(HF eval)。"
+            f"[error] MODEL_ROLE={config.MODEL_ROLE} has no model on the {backend} backend "
+            "(e.g. MedGemma isn't on OpenRouter). Use demo (HF transformers) or dev (HF eval) instead."
         )
     if backend == "openrouter" and not config.OPENROUTER_API_KEY:
         raise ValueError(
-            "[錯誤] ENV=test（OpenRouter）需要 OPENROUTER_API_KEY，但目前未設定。"
-            "請在 .env 設定 OPENROUTER_API_KEY。"
+            "[error] ENV=test (OpenRouter) requires OPENROUTER_API_KEY, which is not set. "
+            "Set OPENROUTER_API_KEY in .env."
         )
     return backend
 
@@ -380,7 +384,8 @@ def _resolve_retrieval_mode(two_stage: bool | None, image_retrieval: bool | None
     use_image = config.IMAGE_RETRIEVAL_RAG if image_retrieval is None else image_retrieval
     if use_two_stage and use_image:
         raise ValueError(
-            "[錯誤] two_stage 與 image_retrieval 不能同時啟用——兩者是互斥的檢索模式。"
+            "[error] two_stage and image_retrieval cannot both be enabled -- "
+            "they are mutually exclusive retrieval modes."
         )
     if use_image:
         return "image"
@@ -392,11 +397,12 @@ def _resolve_retrieval_mode(two_stage: bool | None, image_retrieval: bool | None
 async def generate_medical_report(base64_image: str, prompt: str, system_prompt: str,
                                   two_stage: bool | None = None,
                                   image_retrieval: bool | None = None) -> str:
-    """策略進入點：依據 config 決定派發哪一個環境流程
+    """Strategy entry point: dispatches to the right environment flow based on config.
 
-    two_stage/image_retrieval 為 None 時讀各自的 config 預設(皆預設 off);
-    只在 HF 後端生效——OpenRouter(test)鏡像為選配,目前未實作,兩個旗標在
-    該後端下都不生效。
+    two_stage/image_retrieval fall back to their own config defaults when None
+    (both default off); only take effect on the HF backend -- an OpenRouter
+    (test) mirror is optional and not implemented yet, so both flags are
+    no-ops on that backend.
     """
     backend = _resolve_service_backend()
     if backend == "openrouter":
@@ -410,8 +416,9 @@ async def generate_medical_report(base64_image: str, prompt: str, system_prompt:
 
 
 async def _stream_hf(base64_image: str, prompt: str, system_prompt: str):
-    """demo 環境（HF 直跑、串流版）：背景 thread 跑 generate(streamer=...),用 asyncio.Queue 橋接成 async yield"""
-    from transformers import TextIteratorStreamer  # 延後 import,避免非 demo 環境也要拉 transformers
+    """demo environment (direct HF run, streaming): runs generate(streamer=...)
+    on a background thread, bridged to async yield via asyncio.Queue."""
+    from transformers import TextIteratorStreamer  # deferred import so non-demo environments don't pay the transformers cost
 
     image = _decode_image(base64_image)
     async with _hf_lock:
@@ -432,7 +439,7 @@ async def _stream_hf(base64_image: str, prompt: str, system_prompt: str):
         def _pump():
             for piece in streamer:
                 loop.call_soon_threadsafe(queue.put_nowait, piece)
-            loop.call_soon_threadsafe(queue.put_nowait, None)  # 結束哨兵
+            loop.call_soon_threadsafe(queue.put_nowait, None)  # end-of-stream sentinel
 
         threading.Thread(target=_pump, daemon=True).start()
 
@@ -444,7 +451,8 @@ async def _stream_hf(base64_image: str, prompt: str, system_prompt: str):
 
 
 async def _stream_hf_twostage(base64_image: str, prompt: str, system_prompt: str):
-    """串流版兩階段:stage 1 非串流跑完拿 findings,stage 2 照舊串流。"""
+    """Streaming two-stage: stage 1 runs non-streamed to get findings, stage 2
+    streams as usual."""
     findings = await _call_hf(base64_image, prompt, system_prompt)
     context = await asyncio.to_thread(_retrieve_text_context, findings)
     enhanced_system_prompt = f"{system_prompt}\n\n{context}" if context else system_prompt
@@ -455,10 +463,12 @@ async def _stream_hf_twostage(base64_image: str, prompt: str, system_prompt: str
 
 
 async def _stream_hf_image(base64_image: str):
-    """串流版 R2(影像檢索 few-shot)。同 _call_hf_image 先過 modality gate
-    (gate 失敗就直接 yield 拒答訊息、不進檢索/生成);gate 通過後,檢索在鎖外
-    做完,串流生成在鎖內,跟 _call_hf_image 同一套檢索/建構邏輯,只是 generate
-    換成 streamer。"""
+    """Streaming R2 (image-retrieval few-shot). Same modality gate as
+    _call_hf_image (a failed gate yields the refusal message directly,
+    skipping retrieval/generation); once the gate passes, retrieval runs
+    outside the lock and streaming generation runs inside it -- same
+    retrieval/build logic as _call_hf_image, just generate swapped for a
+    streamer."""
     from transformers import TextIteratorStreamer
 
     image = _decode_image(base64_image)
@@ -490,7 +500,7 @@ async def _stream_hf_image(base64_image: str):
         def _pump():
             for piece in streamer:
                 loop.call_soon_threadsafe(queue.put_nowait, piece)
-            loop.call_soon_threadsafe(queue.put_nowait, None)  # 結束哨兵
+            loop.call_soon_threadsafe(queue.put_nowait, None)  # end-of-stream sentinel
 
         threading.Thread(target=_pump, daemon=True).start()
 
@@ -502,7 +512,7 @@ async def _stream_hf_image(base64_image: str):
 
 
 async def _stream_openrouter(base64_image: str, prompt: str, system_prompt: str):
-    """test 環境（串流版）：逐 token 讀取 OpenRouter 的 SSE 回應"""
+    """test environment (streaming): reads OpenRouter's SSE response token by token."""
     headers = {
         "Authorization": f"Bearer {config.OPENROUTER_API_KEY}",
         "Content-Type": "application/json"
@@ -530,7 +540,7 @@ async def _stream_openrouter(base64_image: str, prompt: str, system_prompt: str)
         async with client.stream("POST", config.OPENROUTER_API_URL, headers=headers, json=payload) as response:
             if response.status_code != 200:
                 error_detail = (await response.aread()).decode("utf-8", "replace")
-                raise Exception(f"OpenRouter API 錯誤 (HTTP {response.status_code}): {error_detail}")
+                raise Exception(f"OpenRouter API error (HTTP {response.status_code}): {error_detail}")
 
             async for line in response.aiter_lines():
                 if not line.startswith("data:"):
@@ -541,10 +551,10 @@ async def _stream_openrouter(base64_image: str, prompt: str, system_prompt: str)
                 try:
                     chunk = json.loads(data)
                 except json.JSONDecodeError:
-                    continue  # 跳過壞行（截斷/註解/keep-alive），不中斷整串
+                    continue  # skip malformed lines (truncation/comment/keep-alive) without breaking the stream
                 choices = chunk.get("choices")
                 if not choices:
-                    continue  # 心跳/內容過濾 chunk 可能無 choices，跳過而非崩潰
+                    continue  # heartbeat/content-filter chunks may have no choices; skip rather than crash
                 token = choices[0].get("delta", {}).get("content", "")
                 if token:
                     yield token
@@ -553,7 +563,7 @@ async def _stream_openrouter(base64_image: str, prompt: str, system_prompt: str)
 async def generate_medical_report_stream(base64_image: str, prompt: str, system_prompt: str,
                                          two_stage: bool | None = None,
                                          image_retrieval: bool | None = None):
-    """串流版策略進入點：依據 config 決定派發哪一個環境流程，逐 token yield"""
+    """Streaming strategy entry point: dispatches by config, yielding token by token."""
     backend = _resolve_service_backend()
     if backend == "openrouter":
         gen = _stream_openrouter(base64_image, prompt, system_prompt)
