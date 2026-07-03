@@ -25,7 +25,6 @@ Keep it plain Python + stdlib. No numpy needed for the core logic.
 import random
 from collections import namedtuple
 
-# present is the "positive" class for every pathology.
 PRF1 = namedtuple("PRF1", ["precision", "recall", "f1", "tp", "fp", "fn"])
 
 

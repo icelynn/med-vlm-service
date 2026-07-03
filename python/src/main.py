@@ -20,18 +20,15 @@ from fastapi.responses import StreamingResponse
 
 from inference import generate_medical_report, generate_medical_report_stream
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("medical-vlm-service")
 
-# Initialize FastAPI application
 app = FastAPI(
 	title="Multimodal Medical AI Image Dialogue Microservice (MVP)",
 	description="Low-latency multimodal medical image diagnosis API (Qwen3-VL / MedGemma via HF transformers or OpenRouter)",
 	version="1.0.0"
 )
 
-# Enable CORS (Cross-Origin Resource Sharing) for future frontend integration
 app.add_middleware(
 	CORSMiddleware,
 	allow_origins=["*"],  # In production, domains should be strictly restricted
@@ -52,17 +49,13 @@ async def analyze_medical_image(
     image_retrieval: Optional[bool] = Form(None),
 ):
     try:
-        # 1. Asynchronously read image raw binary data and convert to Base64 string
         image_bytes = await image.read()
         base64_image = base64.b64encode(image_bytes).decode("utf-8")
 
-        # 2. Call environment routing module (test -> OpenRouter, demo -> HF transformers)
         logger.info("Dispatching multimodal core for medical image report generation...")
         report_content = await generate_medical_report(base64_image, prompt, SYSTEM_PROMPT,
                                                         two_stage=two_stage,
                                                         image_retrieval=image_retrieval)
-
-        # 3. Return structured report
         return {"report": report_content}
 
     except Exception as e:
