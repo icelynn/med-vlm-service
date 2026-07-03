@@ -3,8 +3,8 @@
 Aggregate-reference histogram harmonization for the R2 pool.
 ========================================================================
 
-The sentinel check's histogram-matching retry (retrieval_sentinel.py, see
-核心難題⑫ §0g/§0i) matched the RSNA pool to a SINGLE arbitrary reference
+The sentinel check's histogram-matching retry (retrieval_sentinel.py) matched
+the RSNA pool to a SINGLE arbitrary reference
 image's histogram -- a known simplification that worked for 4/5 reference
 choices tested but failed on the 5th, right at the decision threshold. This
 script replaces that with a steadier reference: the AVERAGE histogram across
@@ -15,7 +15,7 @@ The reference set is whichever dataset the pool is being matched TO --
 CT-ICH eval images for R2-B (RSNA pool -> CT-ICH eval), or RSNA eval images
 for the resolution+intensity-matched R2-C variant (RSNA pool -> RSNA eval,
 on top of the separate resolution-matching step already done by downscaling
-the pool -- see 核心難題⑫ §0j). The function itself doesn't care which.
+the pool). The function itself doesn't care which.
 
 Algorithm is standard histogram specification (same idea as
 skimage.exposure.match_histograms, generalized to match against a

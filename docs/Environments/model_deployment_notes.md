@@ -192,8 +192,9 @@ echo 'export HF_HOME=/mnt/hf' >> ~/.bashrc
 >
 > Two further points from the same paper (general VLMs' weak zero-shot accuracy on
 > medical tasks, and 4-bit quantization's accuracy cost) are **method/architecture**
-> findings rather than deployment ones — moved to `核心難題_遭遇與處理紀錄.md` (①
-> floor effect, §2 hardware/model-size tradeoff) to keep this file scoped to deployment.
+> findings rather than deployment ones, so they're left out here to keep this file
+> scoped to deployment — the floor-effect finding itself is covered in the README's
+> TL;DR and Honest limitations sections.
 
 - **An 11B Vision model is genuinely too heavy for a 16 GB-class GPU.** Even with QLoRA
   (4-bit NF4), fine-tuning LLaMA 3.2 Vision 11B required ~20.4 GB on an A6000 — already

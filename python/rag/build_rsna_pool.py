@@ -4,7 +4,7 @@ Build the R2 (image-retrieval) reference pool -- RSNA images, study-disjoint
 from the existing RSNA eval set.
 =============================================================================
 
-Background (核心難題 12 / Week4 §3b, §0g): R2's chosen path is C (RSNA pool +
+Background: R2's chosen path is C (RSNA pool +
 RSNA eval, decided by the retrieval sentinel check). C needs a pool of
 labeled hemorrhage slices with zero PATIENT/STUDY overlap with the 150-image
 RSNA eval set. RSNA's official labels carry no patient/study identifier, and

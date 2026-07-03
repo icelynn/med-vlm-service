@@ -125,8 +125,8 @@ def stratified_sample(records, n, normal_frac, seed):
     candidate covers the most still-under-represented subtypes"). That
     structurally favours multi-subtype slices -- on RSNA's much larger pool
     it concentrated >90% of the sample on simultaneous 4-5-subtype slices
-    that make up <1% of the true population (see core-challenges doc
-    difficulty (10)). A hand-patched "prefer fewer subtypes" tiebreak
+    that make up <1% of the true population. A hand-patched "prefer fewer
+    subtypes" tiebreak
     overcorrected to an artificially perfect 0%-multi, equal-support sample
     -- just as fake a fingerprint as the original skew, since real subtype
     prevalence is never balanced (e.g. epidural vs subdural differ ~15x).

@@ -21,7 +21,8 @@ provider="image" -> embed `image_path` (the CURRENT query slice -- unlike
                     NOT a text string like the other two providers -- R2's
                     whole point is showing the model images, not describing
                     them in words (that's what R1 already tried and it
-                    didn't fix the perception gap, see 核心難題 4).
+                    didn't fix the perception gap -- see the README's
+                    Honest limitations section).
 """
 
 import json
@@ -97,15 +98,15 @@ def _select_contrastive_from_sims(sims, labels, k=3, neg_position="last",
     for the selection logic.
 
     neg_position controls where the hard negative sits in the returned order
-    (Contrastive_ICL機制實驗設計.md Option 1 — recency-bias ablation):
-    'last' (default, current published behaviour) | 'first' | 'middle'.
-    Only applies to the default n_pos=2/n_neg=1 case -- with other counts
-    (Option 3 -- presence-vs-count ablation) exemplars are just returned
-    positives-then-negatives, ordering isn't the variable under test there.
+    (recency-bias ablation): 'last' (default, current published behaviour) |
+    'first' | 'middle'. Only applies to the default n_pos=2/n_neg=1 case --
+    with other counts (presence-vs-count ablation) exemplars are just
+    returned positives-then-negatives, ordering isn't the variable under
+    test there.
 
     n_pos/n_neg override the default 2 positives + 1 hard negative.
 
-    random_neg=True (Option 4 -- soft-negative ablation) draws the negative(s)
+    random_neg=True (soft-negative ablation) draws the negative(s)
     uniformly at random from all opposite-label pool images instead of the
     most visually similar one -- isolates "negative exists" from "negative is
     visually confusing". seed makes the draw reproducible (pass the query
@@ -166,15 +167,13 @@ def retrieve_image_exemplars(image_path, k=3, index_dir=IMAGE_INDEX_DIR,
 
     index_dir/pool_images_dir default to the R2-C index (RSNA pool -> RSNA
     eval). Pass the R2-B (harmonized RSNA pool -> CT-ICH eval) paths to reuse
-    this exact same retrieval code for the other path -- see 核心難題⑫ §0i /
-    Week4 plan §8.
+    this exact same retrieval code for the other path.
 
     random_baseline=True skips similarity search entirely and draws k random
     pool exemplars instead (deterministic per query image, via a seed derived
     from image_path, so reruns/resumes are reproducible). This isolates
     "does the model benefit from any few-shot exemplar at all" (format
-    demonstration) from "does it benefit from a VISUALLY RELEVANT one" --
-    see 核心難題⑫ §0j.
+    demonstration) from "does it benefit from a VISUALLY RELEVANT one".
 
     contrastive=True selects 2 high-similarity same-label exemplars + 1 hard
     negative (visually similar but opposite any_hemorrhage label), instead of

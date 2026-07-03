@@ -8,8 +8,8 @@ Everything else stays fixed (same images, same GT labels, same model/prompt),
 so any F1 difference vs the existing 128px result is attributable to
 resolution (plus whatever windowing difference the two community mirrors
 happen to use -- not a perfectly pure ablation, but far cleaner than
-comparing across two different datasets). See core-challenges doc difficulty
-(11) for why the cross-dataset comparison alone couldn't isolate resolution.
+comparing across two different datasets); the cross-dataset comparison alone
+couldn't isolate resolution, which is what motivates this controlled fetch.
 
 This is a one-off diagnostic script, not part of the regular prep pipeline --
 intentionally not folded into prep_rsna.py's general machinery.

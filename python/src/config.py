@@ -50,8 +50,8 @@ class Config:
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
     # Findings-conditioned two-stage RAG (opt-in, HF backend only). Default off:
-    # the demo's validated refusal behavior (see core-challenges doc) was tested
-    # without this, so it must not change anything unless explicitly enabled.
+    # the demo's validated refusal behavior was tested without this, so it must
+    # not change anything unless explicitly enabled.
     TWO_STAGE_RAG = os.getenv("TWO_STAGE_RAG", "false").lower() == "true"
 
     # Image-retrieval few-shot RAG (R2, opt-in, HF backend only). Default off,

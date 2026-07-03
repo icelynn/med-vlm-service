@@ -8,7 +8,7 @@ build_rsna_pool.py), embeds every pool slice with BiomedCLIP, and saves the
 embeddings + labels under data/rag/image_index/ for providers.py's
 ImageExemplarProvider to load at eval time.
 
-Also runs a quick sanity check (Week4 plan Day1 step 3): a few random
+Also runs a quick sanity check: a few random
 hemorrhage-positive pool images query the REST of the pool, printing their
 top-3 nearest neighbours' labels -- a human can eyeball whether "visually
 similar" tracks "same subtype" before trusting this for real retrieval.

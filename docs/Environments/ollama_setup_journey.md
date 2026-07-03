@@ -5,13 +5,13 @@
 > This is the **full journey of attempting Ollama as the demo backend** — from a clean
 > install, through hitting an upstream CUDA bug, to two mitigation attempts, to finally
 > retiring Ollama in favor of HF transformers.
-> It is a **timeline / decision log**, deliberately not duplicating three other documents
+> It is a **timeline / decision log**, deliberately not duplicating other documents
 > (follow the links for deeper content):
 > - **Operational steps and the full CUDA-bug log/root-cause**: see the "Ollama" section of
 >   the [AWS Setup Guide](./aws_setup_guide.md) (install commands, systemd override,
 >   instance-store rebuild steps, verification checklist).
-> - **Architecture decisions** (two-track separation, why HF won in the end): see
->   `核心難題_遭遇與處理紀錄.md` (Chinese only), challenges ⑧ and ⑨.
+> - **The architecture decision itself** (two-track separation, why HF won in the end):
+>   see §5 below ("Decision: demo drops Ollama, moves to HF transformers").
 > - **HF/transformers inference troubleshooting itself** (dtype, OOM, gated repos, etc.):
 >   see [Model Deployment Notes](./model_deployment_notes.md).
 >

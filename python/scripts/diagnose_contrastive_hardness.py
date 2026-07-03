@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Option 2 of Contrastive_ICL機制實驗設計.md: zero-cost diagnostic of how
-"hard" the hard negative actually is (positive-sim vs negative-sim gap),
-no LLM inference needed."""
+"""Zero-cost diagnostic of how "hard" the hard negative actually is
+(positive-sim vs negative-sim gap), no LLM inference needed."""
 
 import csv
 import sys

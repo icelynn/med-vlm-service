@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""One-off generator for docs/media/per_subtype_heatmap.svg (Week5 nice-to-have
-Day2 (4): per-subtype F1 heatmap, method x subtype). Reads the same summary
+"""One-off generator for docs/media/per_subtype_heatmap.svg (per-subtype F1
+heatmap, method x subtype). Reads the same summary
 JSON files the README's comparison table already cites -- no new GPU runs,
 no new numbers, just a different rendering of existing per_subtype F1s.
 

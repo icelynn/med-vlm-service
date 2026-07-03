@@ -150,8 +150,8 @@ def sample_and_fetch(records, n, normal_frac, seed):
     hemorrhage images drawn via multi-label stratified sampling
     (MultilabelStratifiedShuffleSplit, Sechidis et al. 2011 -- the standard
     tool for this exact problem, used in published RSNA-competition
-    solutions). See prep_ct_ich.py's stratified_sample docstring and
-    core-challenges doc difficulty (10) for why a hand-rolled greedy
+    solutions). See prep_ct_ich.py's stratified_sample docstring for why a
+    hand-rolled greedy
     coverage loop was replaced: it structurally favours multi-subtype
     images (whichever covers the most still-rare labels at once), which blew
     up to >90% multi-subtype on this dataset's much larger pool, and a

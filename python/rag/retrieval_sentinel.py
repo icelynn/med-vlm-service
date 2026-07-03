@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Retrieval sentinel check -- decides B vs C for Week4 R2's image-retrieval pool.
+Retrieval sentinel check -- decides B vs C for R2's image-retrieval pool.
 ================================================================================
 
-Background (核心難題 12 / Week4 計畵 §3b, §0g): the original R2 reference-pool
+Background: the original R2 reference-pool
 plan (CT-ICH patient split) turned out to be mathematically infeasible (only
 28 patients / 5 hemorrhage slices left after carving out the eval set,
 IVH/EDH/SDH at zero). The two remaining options are:
@@ -27,7 +27,7 @@ random pool slices and recompute the same hit rate -- this implicitly bakes
 in the pool's true per-subtype prevalence, so no separate prevalence
 correction is needed.
 
-Decision rule (fixed BEFORE running on real data, see Week4 plan §0g):
+Decision rule (fixed BEFORE running on real data):
     real hit_rate@k  >=  95th percentile of the permutation null  -> go B
     else: try histogram-matching the pool images once, recompute   -> go B
     still short                                                     -> go C

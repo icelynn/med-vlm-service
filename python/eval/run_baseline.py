@@ -134,7 +134,7 @@ def main():
     ap.add_argument("--image-random", action="store_true",
                     help="--context image only: draw k random pool exemplars instead "
                          "of retrieving by similarity -- a control to isolate retrieval "
-                         "quality from \"having any few-shot exemplar\" (核心難題⑫ §0j)")
+                         "quality from \"having any few-shot exemplar\"")
     ap.add_argument("--image-contrastive", action="store_true",
                     help="--context image only: select 2 high-similarity same-label "
                          "exemplars + 1 hard negative (visually similar but opposite "
@@ -146,21 +146,17 @@ def main():
                     choices=["last", "first", "middle"],
                     help="--image-contrastive only: where the hard negative sits "
                          "in the few-shot order. Default 'last' matches the "
-                         "published R2 contrastive rows (recency-bias ablation, "
-                         "Contrastive_ICL機制實驗設計.md Option 1)")
+                         "published R2 contrastive rows (recency-bias ablation)")
     ap.add_argument("--contrastive-pos-count", type=int, default=2,
                     help="--image-contrastive only: number of positive (same-label) "
-                         "exemplars. Default 2 matches published rows "
-                         "(Contrastive_ICL機制實驗設計.md Option 3)")
+                         "exemplars. Default 2 matches published rows")
     ap.add_argument("--contrastive-neg-count", type=int, default=1,
                     help="--image-contrastive only: number of hard-negative "
-                         "(opposite-label) exemplars. Default 1 matches published rows "
-                         "(Contrastive_ICL機制實驗設計.md Option 3)")
+                         "(opposite-label) exemplars. Default 1 matches published rows")
     ap.add_argument("--contrastive-random-neg", action="store_true",
                     help="--image-contrastive only: draw the negative(s) uniformly "
                          "at random from opposite-label pool images instead of the "
-                         "most visually similar one (Contrastive_ICL機制實驗設計.md "
-                         "Option 4 -- soft-negative ablation)")
+                         "most visually similar one (soft-negative ablation)")
     ap.add_argument("--image-k", type=int, default=3,
                     help="--context image only: number of few-shot exemplars. Default 3 "
                          "matches the published R2-B/R2-C rows; lower only if VRAM forces "
