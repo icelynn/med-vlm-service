@@ -12,10 +12,8 @@ inference backend to produce multimodal diagnostic reports. Backends: HF transfo
 import base64
 import json
 import logging
-from io import BytesIO
 from pathlib import Path
 from typing import Optional
-from PIL import Image
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -46,41 +44,6 @@ app.add_middleware(
 # can be edited/versioned without touching code.
 SYSTEM_PROMPT = (Path(__file__).resolve().parent / "system_prompt.txt").read_text(encoding="utf-8")
 
-def preprocess_and_compress_image(image_bytes: bytes, max_size: int = 1120, quality: int = 80) -> bytes:
-    """
-    To resolve JSON stream truncation issues caused by oversized single requests at the external API gateway.
-    Proportionally scale large images to the optimal edge length for Llama-3.2-Vision (1120px) and limit size to a safe range.
-    """
-    try:
-        img = Image.open(BytesIO(image_bytes))
-        
-        # Convert to standard RGB (prevent encoding incompatibility from special color gamuts or grayscale modes in medical images)
-        if img.mode != "RGB":
-            img = img.convert("RGB")
-            
-        width, height = img.size
-        
-        # Perform proportional scaling
-        if width > max_size or height > max_size:
-            if width > height:
-                new_width = max_size
-                new_height = int(height * (max_size / width))
-            else:
-                new_height = max_size
-                new_width = int(width * (max_size / height))
-            
-            # Use high-quality LANCZOS filter to preserve edge details in radiology images
-            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-            logger.info(f"Image size successfully downsampled from {width}x{height} to {new_width}x{height}")
-            
-        # Output compressed binary stream
-        output = BytesIO()
-        img.save(output, format="JPEG", quality=quality)
-        return output.getvalue()
-    except Exception as e:
-        logger.error(f"Image defensive preprocessing pipeline failed: {str(e)}")
-        raise ValueError(f"Image preprocessing failed: {str(e)}")
-
 @app.post("/analyze")
 async def analyze_medical_image(
     prompt: str = Form(...),
@@ -98,10 +61,10 @@ async def analyze_medical_image(
         report_content = await generate_medical_report(base64_image, prompt, SYSTEM_PROMPT,
                                                         two_stage=two_stage,
                                                         image_retrieval=image_retrieval)
-        
+
         # 3. Return structured report
         return {"report": report_content}
-        
+
     except Exception as e:
         logger.error(f"Unexpected error in inference pipeline: {str(e)}")
         raise HTTPException(
