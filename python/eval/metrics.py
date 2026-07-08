@@ -271,9 +271,6 @@ def _test_paired_bootstrap():
 
 
 if __name__ == "__main__":
-    try:
-        _run_self_test()
-        _test_bootstrap_ci()
-        _test_paired_bootstrap()
-    except NotImplementedError:
-        print("metrics.py not implemented yet — fill in the TODO functions and re-run.")
+    _run_self_test()
+    _test_bootstrap_ci()
+    _test_paired_bootstrap()
