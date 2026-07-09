@@ -116,39 +116,3 @@ def test_decode_image_caps_size():
     assert max(decoded.size) <= 896, decoded.size
 
 
-async def _main():
-    async_tests = [
-        test_resolve_backend_demo_is_hf,
-        test_resolve_backend_dev_still_blocked,
-        test_call_hf_strips_thinking_block,
-        test_call_hf_passthrough_when_no_thinking,
-    ]
-    sync_tests = [test_strip_thinking_unit, test_decode_image_caps_size]
-    failed = 0
-    for t in async_tests:
-        try:
-            await t()
-            print(f"PASS  {t.__name__}")
-        except AssertionError as e:
-            failed += 1
-            print(f"FAIL  {t.__name__}: {e}")
-        except Exception as e:
-            failed += 1
-            print(f"ERROR {t.__name__}: {type(e).__name__}: {e}")
-    for t in sync_tests:
-        try:
-            t()
-            print(f"PASS  {t.__name__}")
-        except AssertionError as e:
-            failed += 1
-            print(f"FAIL  {t.__name__}: {e}")
-        except Exception as e:
-            failed += 1
-            print(f"ERROR {t.__name__}: {type(e).__name__}: {e}")
-    total = len(async_tests) + len(sync_tests)
-    print(f"\n{total - failed}/{total} passed")
-    return 1 if failed else 0
-
-
-if __name__ == "__main__":
-    sys.exit(asyncio.run(_main()))

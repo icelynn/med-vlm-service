@@ -88,22 +88,3 @@ def test_excluded_study_dropped_wholesale_and_page_boundary_grouping():
     )
 
 
-def _main():
-    tests = [test_excluded_study_dropped_wholesale_and_page_boundary_grouping]
-    failed = 0
-    for t in tests:
-        try:
-            t()
-            print(f"PASS  {t.__name__}")
-        except AssertionError as e:
-            failed += 1
-            print(f"FAIL  {t.__name__}: {e}")
-        except Exception as e:
-            failed += 1
-            print(f"ERROR {t.__name__}: {type(e).__name__}: {e}")
-    print(f"\n{len(tests) - failed}/{len(tests)} passed")
-    return 1 if failed else 0
-
-
-if __name__ == "__main__":
-    sys.exit(_main())

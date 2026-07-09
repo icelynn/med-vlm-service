@@ -155,27 +155,3 @@ async def test_stream_gate_fail_yields_refusal_only():
     assert calls["count"] == 0
 
 
-async def _main():
-    async_tests = [
-        test_gate_fail_blocks_before_retrieval,
-        test_gate_pass_reaches_fewshot_answer,
-        test_gate_fails_open_on_ambiguous_answer,
-        test_stream_gate_fail_yields_refusal_only,
-    ]
-    failed = 0
-    for t in async_tests:
-        try:
-            await t()
-            print(f"PASS  {t.__name__}")
-        except AssertionError as e:
-            failed += 1
-            print(f"FAIL  {t.__name__}: {e}")
-        except Exception as e:
-            failed += 1
-            print(f"ERROR {t.__name__}: {type(e).__name__}: {e}")
-    print(f"\n{len(async_tests) - failed}/{len(async_tests)} passed")
-    return 1 if failed else 0
-
-
-if __name__ == "__main__":
-    sys.exit(asyncio.run(_main()))

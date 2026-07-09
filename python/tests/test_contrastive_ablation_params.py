@@ -158,20 +158,3 @@ def test_random_neg_not_same_as_hard_neg():
     assert len(choices) > 1  # must not be the only one reached
 
 
-if __name__ == "__main__":
-    tests = [
-        test_neg_position_first,
-        test_neg_position_middle,
-        test_neg_position_last_is_default,
-        test_3pos_0neg_returns_three_positives,
-        test_2pos_2neg_returns_correct_split,
-        test_1pos_1neg,
-        test_random_neg_draws_from_opposite_label,
-        test_random_neg_is_reproducible_with_same_seed,
-        test_random_neg_varies_across_seeds,
-        test_random_neg_not_same_as_hard_neg,
-    ]
-    for t in tests:
-        t()
-        print(f"  PASS  {t.__name__}")
-    print(f"\nAll {len(tests)} tests passed.")

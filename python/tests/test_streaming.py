@@ -121,7 +121,9 @@ async def test_openrouter_skips_malformed_and_choiceless():
 async def test_missing_openrouter_key_clear_error():
     """ENV=test with an empty OPENROUTER_API_KEY raises a clear local error, not Bearer ''."""
     orig_key = inference.config.OPENROUTER_API_KEY
+    orig_env = inference.config.ENV
     inference.config.OPENROUTER_API_KEY = ""
+    inference.config.ENV = "test"
     try:
         raised = False
         try:
@@ -130,6 +132,7 @@ async def test_missing_openrouter_key_clear_error():
             raised = "OPENROUTER_API_KEY" in str(e)
     finally:
         inference.config.OPENROUTER_API_KEY = orig_key
+        inference.config.ENV = orig_env
     assert raised, "expected a clear OPENROUTER_API_KEY-not-set ValueError"
 
 
@@ -180,29 +183,3 @@ async def test_endpoint_error_then_done():
     assert r.text.endswith("data: [DONE]\n\n"), repr(r.text)
 
 
-async def _main():
-    tests = [
-        test_local_router_parses_sse,
-        test_upstream_error_raises,
-        test_openrouter_skips_malformed_and_choiceless,
-        test_missing_openrouter_key_clear_error,
-        test_endpoint_sse_framing,
-        test_endpoint_error_then_done,
-    ]
-    failed = 0
-    for t in tests:
-        try:
-            await t()
-            print(f"PASS  {t.__name__}")
-        except AssertionError as e:
-            failed += 1
-            print(f"FAIL  {t.__name__}: {e}")
-        except Exception as e:
-            failed += 1
-            print(f"ERROR {t.__name__}: {type(e).__name__}: {e}")
-    print(f"\n{len(tests) - failed}/{len(tests)} passed")
-    return 1 if failed else 0
-
-
-if __name__ == "__main__":
-    sys.exit(asyncio.run(_main()))

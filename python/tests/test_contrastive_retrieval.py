@@ -112,17 +112,3 @@ def test_no_gt_leakage_verification():
     assert result == result2
 
 
-if __name__ == "__main__":
-    tests = [
-        test_basic_contrastive_selection,
-        test_top1_is_negative,
-        test_hard_negative_is_most_similar_opposite,
-        test_ordering_preserves_similarity_for_positives,
-        test_all_same_label_fallback,
-        test_minimal_pool,
-        test_no_gt_leakage_verification,
-    ]
-    for t in tests:
-        t()
-        print(f"  PASS  {t.__name__}")
-    print(f"\nAll {len(tests)} tests passed.")
